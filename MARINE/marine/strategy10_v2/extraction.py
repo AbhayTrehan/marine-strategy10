@@ -18,13 +18,17 @@ We do NOT reimplement this. The repo's own CHAIR evaluator
   * CHAIR.mscoco_objects / inverse_synonym_dict -> the object vocabulary V and
     the synonym collapse used for probe sampling (Sec 4.1).
 
-Loading it by file path (rather than `from eval.eval_chair import CHAIR`) keeps
-us independent of cwd and of the fact that `eval/` has no __init__.py.
+Imported as `eval.eval_chair` (a PEP 420 namespace package, since eval/ has no
+__init__.py) rather than via `from eval.eval_chair import CHAIR` directly, so
+this module works regardless of the caller's cwd. See load_chair_module() for
+why it matters that this go through a real import rather than a hand-loaded
+module object.
 """
 
-import importlib.util
+import importlib
 import os
 import pickle
+import sys
 from typing import Dict, List, Set, Tuple
 
 
@@ -43,33 +47,78 @@ def _ensure_nltk():
 
 
 def load_chair_module(marine_root: str):
+    """Import the repo's own eval/eval_chair.py as `eval.eval_chair`.
+
+    eval/ has no __init__.py, so this relies on PEP 420 namespace packages
+    (Python >= 3.3): any directory on sys.path becomes an importable package
+    even without an __init__.py. Putting `marine_root` on sys.path makes
+    `import eval.eval_chair` work exactly like importing any other module.
+
+    This matters for pickling: pickle.dump on a CHAIR instance records its
+    class as "eval.eval_chair.CHAIR" and, when *loading* that pickle later
+    (possibly in a different process), the pickler re-imports that dotted path
+    via the REAL import system to verify the class exists there. An earlier
+    version of this function loaded eval_chair.py via
+    importlib.util.spec_from_file_location() with a synthetic module name and
+    manually inserted it into sys.modules. That is enough to satisfy the
+    pure-Python `pickle` module's __import__ check within the SAME process,
+    but the C-accelerated `_pickle` module (which is what `import pickle`
+    actually gives you by default) does its own import validation during
+    save_global, and a module that only exists because someone hand-inserted
+    it into sys.modules -- rather than one the real finders (sys.path
+    scanning) can locate -- is not guaranteed to satisfy that check. Going
+    through a real `import eval.eval_chair` sidesteps the issue entirely:
+    the module is genuinely discoverable via sys.path in any process, so both
+    the pure-Python and the C pickler can import it reliably at dump time
+    AND at load time.
+    """
     path = os.path.join(marine_root, "eval", "eval_chair.py")
     if not os.path.exists(path):
         raise FileNotFoundError(f"Could not find the repo's CHAIR evaluator at {path}")
-    spec = importlib.util.spec_from_file_location("marine_eval_chair_s10v2", path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+
+    if marine_root not in sys.path:
+        sys.path.insert(0, marine_root)  # front of sys.path: shadow any same-named package
+
+    return importlib.import_module("eval.eval_chair")
 
 
 def build_chair(marine_root: str, coco_annotations: str, cache_path: str):
     """Build (or load from cache) the CHAIR evaluator.
 
-    Uses the SAME pickle cache path the repo's eval_chair.py main() uses, so if
-    you have already run CHAIR evaluation this is instant.
+    Uses the SAME pickle cache path the repo's eval_chair.py main() uses by
+    default, so if you have already run CHAIR evaluation this can be instant.
+
+    CAVEAT: pickle records a class's location as "<module>.<ClassName>". If the
+    cache on disk was written by running eval/eval_chair.py DIRECTLY (`python
+    eval/eval_chair.py ...`), CHAIR was pickled as "__main__.CHAIR" -- and
+    __main__ here is THIS script, which has no CHAIR attribute, so unpickling
+    fails. We treat that as a stale/incompatible cache rather than a fatal
+    error: warn, ignore it, and rebuild (one-off, ~1-2 min).
     """
     _ensure_nltk()
     chair_mod = load_chair_module(marine_root)
 
+    evaluator = None
     if cache_path and os.path.exists(cache_path):
-        with open(cache_path, "rb") as f:
-            evaluator = pickle.load(f)
-        print(f"[extraction] loaded CHAIR evaluator from cache: {cache_path}")
-    else:
+        try:
+            with open(cache_path, "rb") as f:
+                evaluator = pickle.load(f)
+            print(f"[extraction] loaded CHAIR evaluator from cache: {cache_path}")
+        except Exception as exc:
+            print(f"[extraction] cache at {cache_path} could not be loaded "
+                  f"({type(exc).__name__}: {exc}).")
+            print("[extraction] this usually means the cache was pickled by a "
+                  "different entry-point script (e.g. eval/eval_chair.py run "
+                  "directly) -- ignoring it and rebuilding.")
+            evaluator = None
+
+    if evaluator is None:
         print("[extraction] building CHAIR evaluator from COCO annotations (one-off, ~1-2 min)...")
         evaluator = chair_mod.CHAIR(coco_annotations)
         if cache_path:
-            os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+            cache_dir = os.path.dirname(cache_path)
+            if cache_dir:
+                os.makedirs(cache_dir, exist_ok=True)
             with open(cache_path, "wb") as f:
                 pickle.dump(evaluator, f)
             print(f"[extraction] cached CHAIR evaluator to: {cache_path}")

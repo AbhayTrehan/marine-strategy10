@@ -49,7 +49,7 @@ class Strategy10V2Config:
     # ---- data ---------------------------------------------------------------
     image_folder: str = "./data/coco/val2014"
     coco_annotations: str = "./data/coco/annotations"
-    chair_cache: str = "./data/coco/chair_cache.pkl"
+    chair_cache: str = "./data/coco/chair_cache_s10v2.pkl"
     question_file: str = "./data/org_qa/chair/coco_chair.json"
     cooccur_file: str = "./data/org_qa/pope/coco/coco_co_occur.json"
     num_images: int = 50
