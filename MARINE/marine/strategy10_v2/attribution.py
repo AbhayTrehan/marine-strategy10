@@ -1,32 +1,30 @@
 """
-Sec 3.3 -- Visual Attribution and the Masking Region R(w).
+Geometry between three coordinate frames:
 
-Two-tier, applied IDENTICALLY to candidates and probes:
+    (a) ORIGINAL image pixels        -- what GroundingDINO's box is in
+    (b) the PREPROCESSED 336x336 crop -- what CLIP-L/14 actually receives
+    (c) the 24x24 PATCH GRID          -- what the ViT actually tokenises
 
-  1. Detector-based localization. If s_det(w) >= tau_box, R(w) := OWL-ViT's top
-     box for "a photo of a w."  (handled in detector.py; consumed here)
+Frame (c) is the one that matters, and the reason the previous build leaked.
+LLaVA does not see pixels; it sees 576 patch tokens. Masking a box's exact
+pixels leaves every partially-covered patch still carrying a slice of the object
+straight into the encoder. So the region has to be defined in frame (c): every
+patch the box touches, in full.
 
-  2. Attention-based fallback. Otherwise R(w) is built from the LVLM's own
-     cross-modal attention at the teacher-forced token w_1, aggregated over a
-     fixed layer/head set A (Eq. 5), keeping the smallest top-ranked patch set
-     whose cumulative attention mass exceeds rho.
+The mapping (a) -> (b) is CLIP's resize-shortest-edge-to-336 followed by a
+336x336 centre crop. It is replicated here exactly (matching HF's
+get_resize_output_image_size and center_crop integer arithmetic) rather than
+approximated -- an off-by-a-few-pixels error here would put the mask on the
+wrong patches, which is undetectable by eye but fatal to Delta.
 
-The fiddly part is tier 2: LLaVA's 576 image tokens live on a 24x24 grid over
-the *preprocessed* image (CLIP-L/14: resize shortest-edge->336, then centre-crop
-336x336). To mask the corresponding pixels of I -- and Sec 3.3 is explicit that
-we mask I and re-encode it in full -- we must invert that resize+crop. That
-inverse is implemented exactly (matching HF's get_resize_output_image_size and
-center_crop integer arithmetic) rather than approximated.
+Note that the centre crop DISCARDS part of the image. An object sitting in the
+cropped-away margin is not visible to the LVLM at all, so it has no patches, so
+masking it is a no-op and its Delta is necessarily 0. That is a real and correct
+outcome, not a bug -- but it must be surfaced, so box_to_patches reports it.
 """
 
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Sequence, Tuple
 
-import torch
-
-
-# --------------------------------------------------------------------------- #
-# preprocessing geometry: patch grid  ->  original image pixels
-# --------------------------------------------------------------------------- #
 
 def compute_geometry(orig_w: int, orig_h: int, image_processor) -> Dict:
     """Replicates the CLIP image processor's resize + centre-crop arithmetic."""
@@ -39,7 +37,7 @@ def compute_geometry(orig_w: int, orig_h: int, image_processor) -> Dict:
     crop_size = getattr(image_processor, "crop_size", None) or {}
     crop_h, crop_w = crop_size.get("height"), crop_size.get("width")
 
-    # --- resize -----------------------------------------------------------
+    # --- resize ------------------------------------------------------------
     if do_resize and shortest_edge is not None:
         # HF get_resize_output_image_size(..., default_to_square=False)
         if orig_w <= orig_h:
@@ -53,7 +51,7 @@ def compute_geometry(orig_w: int, orig_h: int, image_processor) -> Dict:
     else:
         new_h, new_w = orig_h, orig_w
 
-    # --- centre crop ------------------------------------------------------
+    # --- centre crop --------------------------------------------------------
     if do_center_crop and crop_h is not None and crop_w is not None:
         ch, cw = crop_h, crop_w
     else:
@@ -63,19 +61,75 @@ def compute_geometry(orig_w: int, orig_h: int, image_processor) -> Dict:
     left = (new_w - cw) // 2
 
     return {
-        "crop_w": cw,
-        "crop_h": ch,
-        "left": left,
-        "top": top,
+        "crop_w": cw, "crop_h": ch,
+        "left": left, "top": top,
         "scale_x": new_w / float(orig_w),
         "scale_y": new_h / float(orig_h),
     }
 
 
-def patches_to_boxes(patch_indices: Sequence[int], grid: int,
-                     orig_w: int, orig_h: int, image_processor) -> List[List[float]]:
-    """Map flat patch indices (row-major over the grid x grid map) back to
-    boxes in ORIGINAL image pixel coordinates."""
+def orig_box_to_crop_box(box: Sequence[float], g: Dict) -> Tuple[float, float, float, float]:
+    """ORIGINAL pixel box -> coordinates inside the 336x336 crop (may fall outside)."""
+    x0, y0, x1, y1 = box
+    return (
+        x0 * g["scale_x"] - g["left"],
+        y0 * g["scale_y"] - g["top"],
+        x1 * g["scale_x"] - g["left"],
+        y1 * g["scale_y"] - g["top"],
+    )
+
+
+def box_to_patches(box: Sequence[float], grid: int, orig_w: int, orig_h: int,
+                   image_processor) -> Tuple[List[int], Dict]:
+    """Every patch index the box touches, plus diagnostics.
+
+    "Touches" is deliberately inclusive: a patch that the box overlaps by even
+    one pixel is masked IN FULL. Anything less would leave part of the object
+    inside a token the ViT reads.
+    """
+    g = compute_geometry(orig_w, orig_h, image_processor)
+    px_w = g["crop_w"] / float(grid)
+    px_h = g["crop_h"] / float(grid)
+
+    x0c, y0c, x1c, y1c = orig_box_to_crop_box(box, g)
+
+    # clip the box to the visible crop
+    vx0, vy0 = max(0.0, x0c), max(0.0, y0c)
+    vx1, vy1 = min(float(g["crop_w"]), x1c), min(float(g["crop_h"]), y1c)
+
+    info = {
+        "outside_crop": not (vx1 > vx0 and vy1 > vy0),
+        "clipped_by_crop": (x0c < 0 or y0c < 0
+                            or x1c > g["crop_w"] or y1c > g["crop_h"]),
+    }
+    if info["outside_crop"]:
+        info.update({"n_patches": 0, "patch_frac": 0.0})
+        return [], info
+
+    c0 = max(0, int(vx0 // px_w))
+    r0 = max(0, int(vy0 // px_h))
+    # ceil on the far edge: any patch the box reaches into is included
+    c1 = min(grid, int(-(-vx1 // px_w)))
+    r1 = min(grid, int(-(-vy1 // px_h)))
+    c1 = max(c1, c0 + 1)
+    r1 = max(r1, r0 + 1)
+
+    patches = [r * grid + c for r in range(r0, r1) for c in range(c0, c1)]
+    info.update({
+        "n_patches": len(patches),
+        "patch_frac": len(patches) / float(grid * grid),
+        "patch_rect": [r0, r1, c0, c1],
+    })
+    return patches, info
+
+
+def patches_to_orig_boxes(patch_indices: Sequence[int], grid: int,
+                          orig_w: int, orig_h: int, image_processor) -> List[List[float]]:
+    """Patch indices -> boxes in ORIGINAL image pixels.
+
+    Used to (a) paint the mask onto the PIL image and (b) draw the actual masked
+    region in the HTML report, so what the report shows is what the model saw.
+    """
     g = compute_geometry(orig_w, orig_h, image_processor)
     px_w = g["crop_w"] / float(grid)
     px_h = g["crop_h"] / float(grid)
@@ -83,116 +137,25 @@ def patches_to_boxes(patch_indices: Sequence[int], grid: int,
     boxes = []
     for idx in patch_indices:
         r, c = divmod(int(idx), grid)
-        # patch box in crop coords
-        x0c, x1c = c * px_w, (c + 1) * px_w
-        y0c, y1c = r * px_h, (r + 1) * px_h
-        # crop coords -> resized coords
-        x0r, x1r = x0c + g["left"], x1c + g["left"]
-        y0r, y1r = y0c + g["top"], y1c + g["top"]
-        # resized coords -> original coords
-        x0 = x0r / g["scale_x"]
-        x1 = x1r / g["scale_x"]
-        y0 = y0r / g["scale_y"]
-        y1 = y1r / g["scale_y"]
+        x0 = (c * px_w + g["left"]) / g["scale_x"]
+        x1 = ((c + 1) * px_w + g["left"]) / g["scale_x"]
+        y0 = (r * px_h + g["top"]) / g["scale_y"]
+        y1 = ((r + 1) * px_h + g["top"]) / g["scale_y"]
 
-        x0 = max(0.0, min(x0, orig_w))
-        x1 = max(0.0, min(x1, orig_w))
-        y0 = max(0.0, min(y0, orig_h))
-        y1 = max(0.0, min(y1, orig_h))
+        x0, x1 = max(0.0, min(x0, orig_w)), max(0.0, min(x1, orig_w))
+        y0, y1 = max(0.0, min(y0, orig_h)), max(0.0, min(y1, orig_h))
         if x1 > x0 and y1 > y0:
             boxes.append([x0, y0, x1, y1])
     return boxes
 
 
-# --------------------------------------------------------------------------- #
-# locating the image tokens inside the LM sequence
-# --------------------------------------------------------------------------- #
-
-def image_token_positions(input_ids_row: torch.Tensor, seq_len: int,
-                          image_token_index: int, n_image_tokens: int) -> torch.Tensor:
-    """Positions of the image tokens in the language model's sequence.
-
-    Handles both transformers regimes:
-      * modern: the processor already expanded <image> into n_image_tokens
-        placeholders, so seq_len == input_ids length;
-      * legacy: input_ids carries a single <image> and the model expands it
-        internally, so seq_len == len(input_ids) - 1 + n_image_tokens.
-    """
-    pos = (input_ids_row == image_token_index).nonzero(as_tuple=True)[0]
-    n_in = int(input_ids_row.shape[0])
-
-    if n_in == seq_len:
-        if int(pos.numel()) == n_image_tokens:
-            return pos
-        raise RuntimeError(
-            f"Expected {n_image_tokens} image tokens in input_ids, found {int(pos.numel())}."
-        )
-
-    if int(pos.numel()) == 1 and seq_len == n_in - 1 + n_image_tokens:
-        start = int(pos[0].item())
-        return torch.arange(start, start + n_image_tokens, device=input_ids_row.device)
-
-    raise RuntimeError(
-        f"Cannot locate image tokens: len(input_ids)={n_in}, model seq_len={seq_len}, "
-        f"n_image_tokens={n_image_tokens}, n_image_token_ids_found={int(pos.numel())}."
-    )
-
-
-# --------------------------------------------------------------------------- #
-# Eq. 5: a_j(w), and the top-rho attention-mass region
-# --------------------------------------------------------------------------- #
-
-def aggregate_attention(attentions, row_idx: int, img_pos: torch.Tensor,
-                        layers: Sequence[int], heads: Sequence[int],
-                        skip_cls: bool) -> torch.Tensor:
-    """a_j(w) = mean over (layer, head) in A of Attn(w_1 -> patch_j).  Eq. (5).
-
-    `attentions` is the HF tuple of per-layer tensors [B, H, S, S].
-    `row_idx` is the sequence position of the teacher-forced token w_1.
-    """
-    n_layers = len(attentions)
-    layers = [l for l in layers if 0 <= l < n_layers]
-    if not layers:
-        layers = [n_layers // 2]
-
-    acc: Optional[torch.Tensor] = None
-    n = 0
-    for li in layers:
-        att = attentions[li]                      # [1, H, S, S]
-        n_heads = att.shape[1]
-        head_ids = [h for h in heads if 0 <= h < n_heads] if heads else range(n_heads)
-        for h in head_ids:
-            v = att[0, h, row_idx, :].float()     # [S]
-            acc = v[img_pos] if acc is None else acc + v[img_pos]
-            n += 1
-
-    a = acc / max(n, 1)
-    if skip_cls:
-        a = a[1:]                                 # drop the CLS image token
-    return a                                      # [n_patches]
-
-
-def top_mass_patches(a: torch.Tensor, rho: float, max_patch_frac: float) -> torch.Tensor:
-    """Smallest top-ranked patch set whose cumulative attention mass exceeds rho.
-
-    a is renormalised over the image patches first. The spec's rho is a mass
-    threshold on the attention *to the image*; raw LLaMA attention rows also
-    spend mass on the BOS/system/text tokens (the well-known attention sink), so
-    thresholding raw mass would be a threshold on "how visual is this token",
-    not "which patches support w". Renormalising makes rho mean the intended
-    thing and keeps the region size comparable across words.
-    """
-    a = a.clamp(min=0)
-    total = a.sum()
-    n_patches = int(a.numel())
-
-    if float(total) <= 0:
-        return torch.arange(min(1, n_patches), device=a.device)
-
-    p = a / total
-    order = torch.argsort(p, descending=True)
-    cum = torch.cumsum(p[order], dim=0)
-
-    k = int((cum < rho).sum().item()) + 1
-    k = max(1, min(k, max(1, int(max_patch_frac * n_patches))))
-    return order[:k]
+def patches_bounding_box(patch_indices: Sequence[int], grid: int,
+                         orig_w: int, orig_h: int, image_processor):
+    """Single rect in ORIGINAL pixels enclosing all the given patches."""
+    boxes = patches_to_orig_boxes(patch_indices, grid, orig_w, orig_h, image_processor)
+    if not boxes:
+        return None
+    return [
+        min(b[0] for b in boxes), min(b[1] for b in boxes),
+        max(b[2] for b in boxes), max(b[3] for b in boxes),
+    ]

@@ -1,68 +1,170 @@
 """
-Sec 3.3, final paragraph:
+Sec 3.3, masking operator:
 
-    "the masking operator I_masked(w) = Mask(I, R(w)) replaces the pixels in
-     R(w) with the per-channel mean pixel value of I, and the modified image is
-     re-encoded in full through the vision encoder."
+    "I_masked(w) = Mask(I, R(w)) replaces the pixels in R(w) with the per-channel
+     mean pixel value of I, and the modified image is re-encoded in full through
+     the vision encoder."
 
-So we mask in ORIGINAL pixel space and hand a fresh PIL image back to the
-processor -- we do NOT poke at the normalised pixel_values tensor. That keeps
-the masked image on the same preprocessing path as the unmasked one (identical
-resize/crop/normalise), which is what "re-encoded in full" means.
+That is what happens here -- with two hardenings that close a leak the previous
+build had, and a measurement that proves the leak is closed.
+
+THE LEAK
+--------
+LLaVA's vision tower does not see pixels; it sees 576 patch tokens, one per 14x14
+cell of the preprocessed 336x336 crop. Painting a box's exact pixels grey leaves
+two channels open:
+
+  (1) PARTIAL PATCHES. A patch the box only half-covers is still a single token,
+      and half of that token is still the object. The encoder reads it.
+  (2) RESIZE BLEED. The mask is painted at original resolution, then the image is
+      bicubically resized to 336. Interpolation pulls unmasked neighbouring
+      pixels *into* the masked area near its edge, and pushes masked-edge content
+      outward. The grey region that arrives at the ViT is not the grey region we
+      painted.
+
+Neither is visible by eye. Both put object signal inside tokens that are supposed
+to contain none, which inflates l_masked, which shrinks Delta, which is the one
+number the whole method turns on.
+
+THE FIX
+-------
+  (1) is fixed in attribution.box_to_patches: the region is defined on the PATCH
+      GRID, and every patch the box touches is taken in full.
+  (2) is fixed here by `enforce_on_pixel_values`: after the processor has done its
+      resize/crop/normalise, the masked patches are overwritten AGAIN, directly on
+      the normalised pixel_values tensor, with the normalised fill colour. This
+      runs before pixel_values is handed to the vision tower, so the tower
+      provably cannot see anything else there.
+
+Both are applied. The PIL-level mask is kept (not replaced) because it is what the
+spec literally prescribes, because it is what the HTML report displays, and
+because keeping it lets us MEASURE the leak: `measure_leak` reports how much
+signal survived in the masked patches with PIL-masking alone. If the geometry were
+wrong, that number would be large -- so it is a live check on the mapping, not a
+comment claiming the mapping is right.
 """
 
-from typing import List, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
+import torch
 from PIL import Image
 
 
 def mean_pixel(image: Image.Image) -> Tuple[int, int, int]:
+    """Per-channel mean pixel value of I, per Sec 3.3."""
     arr = np.asarray(image.convert("RGB"), dtype=np.float32)
-    mean = arr.reshape(-1, 3).mean(axis=0)
-    return tuple(int(round(float(c))) for c in mean)
+    return tuple(int(round(float(c))) for c in arr.reshape(-1, 3).mean(axis=0))
 
 
 def apply_mask(image: Image.Image, boxes: Sequence[Sequence[float]],
                fill: Tuple[int, int, int]) -> Tuple[Image.Image, float]:
-    """Fill the union of `boxes` with `fill`.
-
-    Returns (masked_image, masked_area_fraction). The area fraction is the
-    fraction of the image's pixels actually overwritten -- reported per word,
-    because a systematic candidate-vs-probe difference in masked area would be a
-    confound in Delta (a bigger occlusion removes more evidence for *any* word).
-    """
+    """Paint `boxes` (already patch-aligned, in ORIGINAL pixels) with `fill`."""
     img = image.convert("RGB")
     arr = np.array(img)
     h, w = arr.shape[:2]
 
     touched = np.zeros((h, w), dtype=bool)
-    for box in boxes:
-        x0, y0, x1, y1 = box
-        c0 = max(0, int(np.floor(x0)))
-        r0 = max(0, int(np.floor(y0)))
-        c1 = min(w, int(np.ceil(x1)))
-        r1 = min(h, int(np.ceil(y1)))
-        # guarantee at least one pixel for degenerate-but-valid boxes
-        c1 = max(c1, min(c0 + 1, w))
-        r1 = max(r1, min(r0 + 1, h))
-        if c1 <= c0 or r1 <= r0:
-            continue
-        touched[r0:r1, c0:c1] = True
+    for x0, y0, x1, y1 in boxes:
+        c0, r0 = max(0, int(np.floor(x0))), max(0, int(np.floor(y0)))
+        c1, r1 = min(w, int(np.ceil(x1))), min(h, int(np.ceil(y1)))
+        if c1 > c0 and r1 > r0:
+            touched[r0:r1, c0:c1] = True
 
     arr[touched] = np.array(fill, dtype=arr.dtype)
     area = float(touched.sum()) / float(h * w) if h * w else 0.0
     return Image.fromarray(arr), area
 
 
-def boxes_area_fraction(boxes: List[Sequence[float]], width: int, height: int) -> float:
-    """Union area of boxes / image area (without materialising the image)."""
-    if not boxes or width <= 0 or height <= 0:
-        return 0.0
-    touched = np.zeros((height, width), dtype=bool)
-    for x0, y0, x1, y1 in boxes:
-        c0, r0 = max(0, int(np.floor(x0))), max(0, int(np.floor(y0)))
-        c1, r1 = min(width, int(np.ceil(x1))), min(height, int(np.ceil(y1)))
-        if c1 > c0 and r1 > r0:
-            touched[r0:r1, c0:c1] = True
-    return float(touched.sum()) / float(width * height)
+# --------------------------------------------------------------------------- #
+# pixel_values-level enforcement + verification
+# --------------------------------------------------------------------------- #
+
+def normalised_fill(fill: Tuple[int, int, int], image_processor) -> List[float]:
+    """The fill colour as the vision tower will see it, after CLIP normalisation.
+
+    This is exactly the value the processor itself would produce for a region of
+    constant `fill`, so overwriting with it is indistinguishable from the region
+    having genuinely been that colour all along -- we are not injecting a novel
+    value the encoder has never seen.
+    """
+    mean = list(getattr(image_processor, "image_mean", [0.0, 0.0, 0.0]))
+    std = list(getattr(image_processor, "image_std", [1.0, 1.0, 1.0]))
+    rescale = 1.0 / 255.0 if getattr(image_processor, "do_rescale", True) else 1.0
+    do_norm = getattr(image_processor, "do_normalize", True)
+
+    out = []
+    for c in range(3):
+        v = float(fill[c]) * rescale
+        if do_norm:
+            v = (v - float(mean[c])) / float(std[c])
+        out.append(v)
+    return out
+
+
+def _patch_slices(patch_idx: int, grid: int, side: int):
+    r, c = divmod(int(patch_idx), grid)
+    p = side // grid
+    return slice(r * p, (r + 1) * p), slice(c * p, (c + 1) * p)
+
+
+def measure_leak(pixel_values: torch.Tensor, patches: Sequence[int],
+                 grid: int, fill_norm: Sequence[float]) -> Dict[str, float]:
+    """How much signal is STILL in the masked patches after PIL-only masking?
+
+    Returns, over the masked patches only:
+      max_abs_dev : the largest per-pixel deviation from the fill colour, in
+                    normalised units. 0 == a perfectly flat masked region.
+      mean_abs_dev: the average such deviation.
+
+    A perfectly executed PIL mask, resized without interpolation error, would give
+    0.0 for both. In practice bicubic resize leaves a thin rim of non-zero
+    deviation at the mask boundary -- which is precisely the leak that
+    `enforce_on_pixel_values` then removes. If these numbers were LARGE (order of
+    the data's own scale, ~1-2), the patch geometry would be wrong and the mask
+    would be landing somewhere other than the object.
+    """
+    if not len(patches):
+        return {"max_abs_dev": 0.0, "mean_abs_dev": 0.0}
+
+    side = int(pixel_values.shape[-1])
+    fill = torch.tensor(fill_norm, dtype=pixel_values.dtype,
+                        device=pixel_values.device).view(3, 1, 1)
+
+    devs = []
+    for p in patches:
+        rs, cs = _patch_slices(p, grid, side)
+        region = pixel_values[0, :, rs, cs]
+        devs.append((region - fill).abs())
+    d = torch.cat([x.reshape(-1) for x in devs])
+    return {"max_abs_dev": float(d.max()), "mean_abs_dev": float(d.mean())}
+
+
+def enforce_on_pixel_values(pixel_values: torch.Tensor, patches: Sequence[int],
+                            grid: int, fill_norm: Sequence[float]) -> torch.Tensor:
+    """Overwrite every masked patch with the fill colour, in normalised space.
+
+    Runs AFTER the processor and BEFORE the vision tower. After this call the
+    masked patches contain the fill colour and nothing else -- no partial-patch
+    remnant, no interpolation bleed. The object cannot reach the encoder.
+    """
+    if not len(patches):
+        return pixel_values
+
+    side = int(pixel_values.shape[-1])
+    fill = torch.tensor(fill_norm, dtype=pixel_values.dtype,
+                        device=pixel_values.device).view(3, 1, 1)
+
+    out = pixel_values.clone()
+    for p in patches:
+        rs, cs = _patch_slices(p, grid, side)
+        out[0, :, rs, cs] = fill
+    return out
+
+
+def verify_enforced(pixel_values: torch.Tensor, patches: Sequence[int],
+                    grid: int, fill_norm: Sequence[float], tol: float = 1e-4) -> bool:
+    """Assert the masked patches really are flat. Cheap, so we just always run it."""
+    if not len(patches):
+        return True
+    return measure_leak(pixel_values, patches, grid, fill_norm)["max_abs_dev"] <= tol

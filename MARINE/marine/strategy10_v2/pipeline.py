@@ -1,19 +1,26 @@
 """
-Algorithm 1 -- per-image orchestration.
+Algorithm 1 -- per image.
 
     Stage 1  y <- M(.|x, I);  O <- ExtractCanonicalObjects(y)
-    Stage 2  P <- SampleAbsentProbes(V, O, K, tau_low)
-             for w in O U P:  R(w) -> I_masked(w) -> ell, ell_masked -> Delta(w)
-             mu_hat, sigma_hat from {Delta(p)};  tau = mu_hat + kappa*sigma_hat
-             O_pos = {Delta >= tau};  H = O \\ O_pos
-    Stage 3  (rewriting -- NOT run: this is the sanity check only)
+    Stage 2  GroundingDINO localises EVERY word in V (one phrase per forward)
+             P <- SampleAbsentProbes(V, O, K, tau_low)      [uses those s_det]
+             for w in O U P:
+                 R(w) <- patches touched by GD's box for w
+                 I_masked(w) <- Mask(I, R(w))               [patch-aligned + enforced]
+                 Delta(w) <- ell(w) - ell_masked(w)         [Eq. 4/6/7, verbatim]
+             mu_hat, sigma_hat <- moments of {Delta(p)}      [Eq. 8]
+             tau <- mu_hat + kappa*sigma_hat                 [Eq. 9]
+             O_pos <- {Delta >= tau};  H <- O \\ O_pos        [Eq. 11/12]
+    Stage 3  (rewriting -- NOT run; this is the verification sanity check)
 
-Everything downstream of Delta is cheap and cached, so the report can re-derive
-the verify/flag decision for any kappa without re-running the model.
+Cost note: GroundingDINO is run once over the whole 80-word COCO vocabulary per
+image (batched, one phrase per batch element). That is what buys us s_det for the
+probe filter AND a box for every probe in a single pass -- and every probe NEEDS a
+box, because without R(p) there is no Delta(p) and hence no null distribution.
 """
 
 import random
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import torch
 from PIL import Image
@@ -24,7 +31,7 @@ from .config import TASK_PROMPT
 
 class Strategy10V2Pipeline:
     def __init__(self, cfg, model, tokenizer, processor, detector, evaluator,
-                 vocabulary, cooccur, grid, n_image_tokens, skip_cls):
+                 vocabulary, cooccur, grid):
         self.cfg = cfg
         self.model = model
         self.tokenizer = tokenizer
@@ -37,11 +44,9 @@ class Strategy10V2Pipeline:
 
         self.dtype = torch.float16 if cfg.fp16 else torch.float32
         self.scorer = scoring.OcclusionScorer(
-            model, tokenizer, processor, cfg.device, self.dtype,
-            grid, n_image_tokens, skip_cls,
+            model, tokenizer, processor, cfg.device, self.dtype, grid
         )
-        self.n_image_tokens = n_image_tokens
-        self.skip_cls = skip_cls
+        self.image_processor = processor.image_processor
         self.elicit_prefix = prompts.elicitation_prefix()
         self.task_prompt = prompts.task_prompt(TASK_PROMPT)
 
@@ -57,79 +62,77 @@ class Strategy10V2Pipeline:
             for k, v in inputs.items() if isinstance(v, torch.Tensor)
         }
         n_in = int(inputs["input_ids"].shape[1])
-
         out_ids = self.model.generate(
-            **inputs,
-            do_sample=False,                 # greedy, matching the repo's CHAIR setting
-            max_new_tokens=self.cfg.max_new_tokens,
+            **inputs, do_sample=False, max_new_tokens=self.cfg.max_new_tokens,
             use_cache=True,
         )
-        text = self.tokenizer.batch_decode(
+        return self.tokenizer.batch_decode(
             out_ids[:, n_in:], skip_special_tokens=True
-        )[0]
-        return text.strip()
+        )[0].strip()
 
     # ------------------------------------------------------------------ #
-    # Sec 3.3 + 3.4: R(w) -> Delta(w).  Identical code path for candidate & probe.
+    # Sec 3.3 + 3.4 -- identical code path for candidates and probes
     # ------------------------------------------------------------------ #
-    def score_word(self, word: str, image: Image.Image, det: Dict) -> Dict:
-        cfg = self.cfg
+    def score_word(self, word: str, image: Image.Image, det: Dict,
+                   fill: tuple, fill_norm: List[float]) -> Dict:
         W, H = image.size
+        entry = det.get(word, {})
+        s_det = float(entry.get("score", 0.0))
+        box = entry.get("box")
 
-        s_det = float(det.get(word, {}).get("score", 0.0))
-        det_box = det.get(word, {}).get("box")
-        use_detector = (s_det >= cfg.tau_box) and (det_box is not None)
-
-        # --- unmasked pass (Eq. 4); ask for attention only if we'll need it ---
-        ell, L, attns, row_idx, input_ids_row = self.scorer.score(
-            self.elicit_prefix, word, image, want_attentions=not use_detector
-        )
-
-        capped = False
-        if use_detector:
-            boxes = [det_box]
-            source = "det"
+        # R(w): every ViT patch GroundingDINO's box touches, in full.
+        if box is None:
+            patches, geo = [], {"outside_crop": True, "clipped_by_crop": False,
+                                "n_patches": 0, "patch_frac": 0.0}
         else:
-            # --- attention fallback (Eq. 5) ---------------------------------
-            seq_len = int(attns[0].shape[-1])
-            img_pos = attribution.image_token_positions(
-                input_ids_row, seq_len, self.scorer.image_token_index, self.n_image_tokens
+            patches, geo = attribution.box_to_patches(
+                box, self.grid, W, H, self.image_processor
             )
-            a = attribution.aggregate_attention(
-                attns, row_idx, img_pos, cfg.attn_layers, cfg.attn_heads, self.skip_cls
-            )
-            patch_idx = attribution.top_mass_patches(a, cfg.rho, cfg.max_patch_frac)
-            boxes = attribution.patches_to_boxes(
-                patch_idx.tolist(), self.grid, W, H, self.processor.image_processor
-            )
-            source = "attn"
-            # If the max_patch_frac safety valve is binding, every attention-routed
-            # word gets an identically-sized region and the attention signal has
-            # effectively been thrown away. Surface it rather than hiding it.
-            n_patches = int(a.numel())
-            capped = len(patch_idx) >= max(1, int(cfg.max_patch_frac * n_patches))
 
-        del attns
+        mask_boxes = attribution.patches_to_orig_boxes(
+            patches, self.grid, W, H, self.image_processor
+        )
+        masked_img, area = masking.apply_mask(image, mask_boxes, fill)
 
-        # --- mask and re-encode in full (Eq. 6) -----------------------------
-        masked_img, area = masking.apply_mask(image, boxes, self._mean_pixel)
-        ell_masked, L2, _, _, _ = self.scorer.score(
-            self.elicit_prefix, word, masked_img, want_attentions=False
+        # ell(w) on the clean image  -- Eq. (4)
+        r_clean = self.scorer.score(self.elicit_prefix, word, image)
+
+        # ell_masked(w) on the occluded image -- Eq. (6).
+        # `measure=True` reports how much object signal the PIL-level mask alone
+        # had left inside the masked patches; the enforcement then removes it.
+        r_masked = self.scorer.score(
+            self.elicit_prefix, word, masked_img,
+            mask_patches=patches if self.cfg.enforce_pixel_mask else None,
+            fill_norm=fill_norm,
+            measure=True,
         )
 
-        d = scoring.delta(ell, ell_masked)
+        d = scoring.delta(r_clean["ell"], r_masked["ell"])   # Eq. (7)
+        leak = r_masked.get("leak") or {"max_abs_dev": 0.0, "mean_abs_dev": 0.0}
+
         return {
             "word": word,
             "s_det": s_det,
-            "region_source": source,
-            "region_capped": bool(capped),
-            "n_boxes": len(boxes),
+            "box": box,
+            "mask_bbox": attribution.patches_bounding_box(
+                patches, self.grid, W, H, self.image_processor
+            ),
+            "n_patches": geo["n_patches"],
+            "patch_frac": geo["patch_frac"],
+            "outside_crop": bool(geo["outside_crop"]),
+            "clipped_by_crop": bool(geo["clipped_by_crop"]),
             "masked_area_frac": area,
-            "n_subword_tokens": L,
-            "ell": ell,
-            "ell_masked": ell_masked,
+            "n_subword_tokens": r_clean["L"],
+            "ell": r_clean["ell"],
+            "ell_masked": r_masked["ell"],
+            "p": scoring.probability(r_clean["ell"]),
+            "p_masked": scoring.probability(r_masked["ell"]),
             "delta": d,
             "conf_drop_pct": scoring.confidence_drop_pct(d),
+            "leak_max": leak["max_abs_dev"],
+            "leak_mean": leak["mean_abs_dev"],
+            "mask_enforced_ok": bool(r_masked["mask_enforced_ok"]),
+            "_masked_img": masked_img,   # stripped before JSON; used by the HTML report
         }
 
     # ------------------------------------------------------------------ #
@@ -137,9 +140,10 @@ class Strategy10V2Pipeline:
         cfg = self.cfg
         path = f"{cfg.image_folder.rstrip('/')}/{image_file}"
         image = Image.open(path).convert("RGB")
-        self._mean_pixel = masking.mean_pixel(image)
 
-        # -------- Stage 1 ------------------------------------------------
+        fill = masking.mean_pixel(image)
+        fill_norm = masking.normalised_fill(fill, self.image_processor)
+
         caption = self.generate_caption(image)
         objects = extraction.extract_objects(self.evaluator, caption)
         gt = extraction.ground_truth_objects(self.evaluator, image_id)
@@ -149,21 +153,23 @@ class Strategy10V2Pipeline:
             "image_id": image_id,
             "caption": caption,
             "gt_objects": sorted(gt),
+            "mean_pixel": list(fill),
             "objects": [],
             "probes": [],
             "skipped": None,
+            "_image": image,
         }
 
         if not objects:
-            record["skipped"] = "no COCO objects mentioned in caption"
+            record["skipped"] = "no COCO objects mentioned in the caption"
             return record
 
         mentioned = {o["object"] for o in objects}
 
-        # -------- one OWL-ViT pass scores the whole vocabulary ------------
-        det = self.detector.score_vocabulary(image, self.vocabulary)
+        # GroundingDINO over the whole vocabulary: gives s_det for the probe
+        # filter AND a box for every probe, in one batched pass.
+        det = self.detector.score_words(image, self.vocabulary)
 
-        # -------- Sec 4.1: probes ----------------------------------------
         probe_words, probe_info = probes.sample_probes(
             vocabulary=self.vocabulary,
             mentioned=mentioned,
@@ -177,35 +183,31 @@ class Strategy10V2Pipeline:
         record["probe_info"] = probe_info
 
         if len(probe_words) < 2:
-            record["skipped"] = f"only {len(probe_words)} probes available (need >=2 for sigma)"
+            record["skipped"] = f"only {len(probe_words)} probes (need >=2 for sigma_hat)"
             return record
 
-        # -------- Sec 3/4.2: Delta for candidates AND probes, same code path
         for o in objects:
-            row = self.score_word(o["object"], image, det)
+            row = self.score_word(o["object"], image, det, fill, fill_norm)
             row["surface"] = o["surface"]
             row["span_idx"] = o["span_idx"]
             row["gt_label"] = extraction.label_object(o["object"], gt)
             record["objects"].append(row)
 
         for p in probe_words:
-            row = self.score_word(p, image, det)
-            # diagnostic ONLY -- never used by the method
-            row["gt_present"] = bool(p in gt)
+            row = self.score_word(p, image, det, fill, fill_norm)
+            row["gt_present"] = bool(p in gt)   # diagnostic ONLY; never used by the method
+            row.pop("_masked_img", None)        # probes don't get thumbnails
             record["probes"].append(row)
 
-        # -------- Sec 4.3: calibration -----------------------------------
-        probe_deltas = [r["delta"] for r in record["probes"]]
-        mu, sigma = calibration.probe_moments(probe_deltas)
+        # Sec 4.3 -- calibration
+        mu, sigma = calibration.probe_moments([r["delta"] for r in record["probes"]])
         record["mu_hat"] = mu
         record["sigma_hat"] = sigma
         record["tau"] = calibration.threshold(mu, sigma, cfg.kappa)
         record["kappa"] = cfg.kappa
 
         for row in record["objects"]:
-            row["decision"] = (
-                "VERIFIED" if row["delta"] >= record["tau"] else "HALLUCINATED"
-            )
+            row["decision"] = "VERIFIED" if row["delta"] >= record["tau"] else "HALLUCINATED"
 
         if cfg.device.startswith("cuda"):
             torch.cuda.empty_cache()

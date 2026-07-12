@@ -62,8 +62,8 @@ def format_image_block(rec: Dict, idx: int, total: int) -> str:
     )
     lines.append("")
     lines.append(
-        "  {:<14} {:<12} {:>6} {:>6} {:>7} {:>8} {:>8} {:>8} {:>9}  {:<13} {:<13} {}".format(
-            "object", "surface", "s_det", "region", "area%",
+        "  {:<14} {:<12} {:>6} {:>8} {:>8} {:>8} {:>8} {:>9}  {:<13} {:<13} {}".format(
+            "object", "surface", "s_det", "patches",
             "ell", "ell_msk", "Delta", "conf_drop", "decision", "ground truth", "outcome",
         )
     )
@@ -72,9 +72,9 @@ def format_image_block(rec: Dict, idx: int, total: int) -> str:
     for r in rec["objects"]:
         outcome = _outcome(r["decision"], r["gt_label"])
         lines.append(
-            "  {:<14} {:<12} {:>6.3f} {:>6} {:>6.1f}% {:>8.3f} {:>8.3f} {:>+8.3f} {:>+8.1f}%  {:<13} {:<13} {}".format(
-                r["word"][:14], str(r["surface"])[:12], r["s_det"], r["region_source"],
-                100.0 * r["masked_area_frac"], r["ell"], r["ell_masked"],
+            "  {:<14} {:<12} {:>6.3f} {:>8} {:>8.3f} {:>8.3f} {:>+8.3f} {:>+8.1f}%  {:<13} {:<13} {}".format(
+                r["word"][:14], str(r["surface"])[:12], r["s_det"],
+                f"{r['n_patches']}/576", r["ell"], r["ell_masked"],
                 r["delta"], r["conf_drop_pct"], r["decision"], r["gt_label"], outcome,
             )
         )
@@ -145,11 +145,12 @@ def format_summary(records: List[Dict], cfg) -> str:
     L.append("Setup")
     L.append("-----")
     L.append(f"  LVLM                 : {cfg.model_path}   (greedy, max_new_tokens={cfg.max_new_tokens}, seed={cfg.seed})")
-    L.append(f"  zero-shot detector   : {cfg.detector_path}")
+    L.append(f"  localiser            : {cfg.detector_path}")
     L.append(f"  images               : {n_total} from {cfg.question_file}")
-    L.append(f"  hyperparameters      : kappa={cfg.kappa}  K={cfg.K}  tau_box={cfg.tau_box}  "
-             f"tau_low={cfg.tau_low}  rho={cfg.rho}")
-    L.append(f"                         attn layers A={cfg.attn_layers}  max_patch_frac={cfg.max_patch_frac}")
+    L.append(f"  hyperparameters      : kappa={cfg.kappa}  K={cfg.K}  tau_low={cfg.tau_low}")
+    L.append(f"  localisation         : GroundingDINO for EVERY word (no attention fallback)")
+    L.append(f"  masking              : patch-aligned + enforced on pixel_values"
+             f"  (enforce={cfg.enforce_pixel_mask})")
     L.append("")
 
     L.append("Data")
@@ -216,39 +217,32 @@ def format_summary(records: List[Dict], cfg) -> str:
         vals = [x[key] for x in rows]
         return sum(vals) / len(vals) if vals else float("nan")
 
-    def _frac_det(rows):
-        return _pct(sum(1 for x in rows if x["region_source"] == "det"), len(rows))
-
-    L.append("  Region attribution (Sec 3.3) -- candidates vs probes:")
+    L.append("  Localisation (GroundingDINO) -- candidates vs probes:")
     L.append("      {:<26} {:>12} {:>12}".format("", "candidates", "probes"))
-    L.append("      {:<26} {:>12.1f} {:>12.1f}".format("routed to detector (%)",
-                                                       _frac_det(obj_rows), _frac_det(probe_rows)))
-    L.append("      {:<26} {:>12.1f} {:>12.1f}".format("mean masked area (%)",
-                                                       100 * _mean(obj_rows, "masked_area_frac"),
-                                                       100 * _mean(probe_rows, "masked_area_frac")))
     L.append("      {:<26} {:>12.3f} {:>12.3f}".format("mean s_det",
                                                        _mean(obj_rows, "s_det"),
                                                        _mean(probe_rows, "s_det")))
+    L.append("      {:<26} {:>12.0f} {:>12.0f}".format("mean masked patches /576",
+                                                       _mean(obj_rows, "n_patches"),
+                                                       _mean(probe_rows, "n_patches")))
     L.append("      {:<26} {:>+12.3f} {:>+12.3f}".format("mean ell (unmasked)",
                                                          _mean(obj_rows, "ell"),
                                                          _mean(probe_rows, "ell")))
     L.append("      {:<26} {:>+12.3f} {:>+12.3f}".format("mean Delta",
                                                          _mean(obj_rows, "delta"),
                                                          _mean(probe_rows, "delta")))
-
-    attn_obj = [x for x in obj_rows if x["region_source"] == "attn"]
-    attn_pr = [x for x in probe_rows if x["region_source"] == "attn"]
-    L.append("      {:<26} {:>12.1f} {:>12.1f}".format(
-        "attn region hit cap (%)",
-        _pct(sum(1 for x in attn_obj if x.get("region_capped")), len(attn_obj)),
-        _pct(sum(1 for x in attn_pr if x.get("region_capped")), len(attn_pr))))
     L.append("")
-    L.append("      ^ If candidates and probes differ systematically in masked area or in")
-    L.append("        detector-routing rate, Delta is not measuring the same thing for the two")
-    L.append("        groups, and the 'procedural symmetry' Sec 4.2 relies on is only nominal.")
-    L.append("      ^ If 'attn region hit cap' is high, max_patch_frac is binding, every")
-    L.append("        attention-routed word is getting an identically-sized region, and the")
-    L.append("        attention signal has effectively been discarded -- lower rho.")
+    L.append("      ^ If candidates and probes differ systematically in masked-patch count,")
+    L.append("        Delta is not measuring the same thing for the two groups and the")
+    L.append("        'procedural symmetry' Sec 4.2 relies on is only nominal.")
+    L.append("")
+    leak_max = max([o.get("leak_max", 0.0) for o in obj_rows] or [0.0])
+    bad = sum(1 for o in obj_rows if not o.get("mask_enforced_ok", True))
+    outside = sum(1 for o in obj_rows if o.get("outside_crop"))
+    L.append("  Masking integrity:")
+    L.append(f"      residual leak into masked patches (max |dev|, pre-enforcement) : {leak_max:.2e}")
+    L.append(f"      objects where mask enforcement FAILED                          : {bad}")
+    L.append(f"      boxes falling outside the centre-crop (nothing to mask)        : {outside}")
     L.append("")
 
     hall_rows = [o for o in obj_rows if o["gt_label"] == "HALLUCINATED"]
