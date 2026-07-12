@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+
+# Virtual environments
+.env/
+.venv/
+env/
+venv/
+ENV/
+
+# Build artifacts
+*.egg-info/
+dist/
+build/
+
+# Data
+data/coco/
+
+# Models
+pretrained/
+*.pth
+*.pt
+*.ckpt
+
+# Cache
+*.cache/
+
+# Outputs
+output/
+outputs/

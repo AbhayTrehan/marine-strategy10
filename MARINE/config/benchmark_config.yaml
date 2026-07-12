@@ -1,0 +1,12 @@
+chair:
+  datasets: ["coco"]
+  question_path: "./data/org_qa/chair/{dataset}_chair.json"
+  image_dir: "./data/coco/val2014"
+
+pope:
+  datasets: ["coco", "aokvqa", "gqa"]
+  question_path: "./data/org_qa/pope/{dataset}/{dataset}_pope_adversarial.json"
+  image_dir: "./data/coco/val2014"
+qa90:
+  datasets: ["qa90"]
+  question_path: "./data/org_qa/qa90/coco2014_val_gpt4_qa_30x3.jsonl"
