@@ -82,18 +82,155 @@ def load_chair_module(marine_root: str):
     return importlib.import_module("eval.eval_chair")
 
 
-def build_chair(marine_root: str, coco_annotations: str, cache_path: str):
-    """Build (or load from cache) the CHAIR evaluator.
+def build_chair_for_images(marine_root: str, coco_annotations: str,
+                           images: List[Tuple[str, int]], cache_path: str = None):
+    """Build a CHAIR-compatible evaluator, with ground truth for ONLY the given
+    images -- not the repo's full ~40K-image, ~617K-caption COCO corpus.
 
-    Uses the SAME pickle cache path the repo's eval_chair.py main() uses by
-    default, so if you have already run CHAIR evaluation this can be instant.
+    `images`: the (image_file, image_id) list load_questions() returns.
+
+    WHY THIS EXISTS: eval/eval_chair.py's CHAIR.__init__() calls
+    get_annotations(), which loads BOTH instances_train2014.json and
+    instances_val2014.json (~900K segmentation annotations total) and BOTH
+    captions_train2014.json and captions_val2014.json (~617K captions total),
+    and -- this is the actual cost -- runs NLTK tokenisation + TextBlob
+    singularisation on EVERY ONE of those ~617K captions. JSON parsing itself
+    is fast; that per-caption NLP call is what takes the many minutes you were
+    seeing, and it happens in FULL on every run regardless of how many images
+    this sanity check actually scores, because build_chair() builds ground
+    truth for the entire dataset up front.
+
+    We only ever need ground truth for the N images this run actually looks
+    at. Every image in data/org_qa/chair/coco_chair.json is a COCO_val2014_*
+    image, so this function:
+        1. never opens *_train2014.json at all,
+        2. filters val2014's annotations/captions down to `images` BEFORE
+           calling caption_to_words(), so NLP runs on ~5*N captions instead
+           of ~617,000.
+
+    It reuses the REAL CHAIR.caption_to_words() and the same
+    inverse_synonym_dict / double_word_dict the full build uses -- both are
+    set up in __init__ before get_annotations() is ever called -- so the
+    ground-truth labels this produces are IDENTICAL to what the slow,
+    full-corpus build would produce for these same images. This is strictly a
+    speed optimisation, not a different definition of ground truth.
+
+    Raises ValueError if any requested image is not a *_val2014_* image (the
+    fast path can't serve it); use build_chair_full_corpus() for that case.
+    """
+    import json
+    from collections import defaultdict
+
+    non_val = [f for f, _ in images if "val2014" not in f]
+    if non_val:
+        raise ValueError(
+            f"build_chair_for_images() only has annotations loaded for "
+            f"*_val2014_* images, but {len(non_val)} requested image(s) are "
+            f"not val2014 (e.g. {non_val[0]!r}). Use build_chair_full_corpus() "
+            f"instead if you need train2014 images too (much slower)."
+        )
+
+    target_ids = [imid for _, imid in images]
+    cache_key = tuple(sorted(set(target_ids)))
+
+    if cache_path and os.path.exists(cache_path):
+        try:
+            with open(cache_path, "rb") as f:
+                payload = pickle.load(f)
+            if (payload.get("image_ids") == cache_key
+                    and payload.get("coco_annotations") == coco_annotations):
+                print(f"[extraction] loaded targeted ground truth from cache: "
+                      f"{cache_path}  ({len(cache_key)} images)")
+                return payload["evaluator"]
+            print(f"[extraction] cache at {cache_path} is for a different image "
+                  f"set / annotations path -- rebuilding (fast; see below).")
+        except Exception as exc:
+            print(f"[extraction] cache at {cache_path} could not be loaded "
+                  f"({type(exc).__name__}: {exc}) -- rebuilding.")
+
+    _ensure_nltk()
+    chair_mod = load_chair_module(marine_root)
+    chair_cls = chair_mod.CHAIR
+
+    print(f"[extraction] building TARGETED ground truth for {len(cache_key)} "
+          f"images (val2014 only, skips the ~617K-caption full-corpus build; "
+          f"should take a few seconds)...")
+
+    # __init__ does two things: (a) cheap in-memory synonym/double-word setup,
+    # (b) self.get_annotations() -- the expensive full-corpus pass. Stub out
+    # (b) for the duration of construction so we get (a) for free and nothing
+    # else.
+    orig_get_annotations = chair_cls.get_annotations
+    chair_cls.get_annotations = lambda self: None
+    try:
+        evaluator = chair_cls(coco_annotations)
+    finally:
+        chair_cls.get_annotations = orig_get_annotations
+
+    target_set = set(target_ids)
+
+    inst_path = os.path.join(coco_annotations, "instances_val2014.json")
+    if not os.path.exists(inst_path):
+        raise FileNotFoundError(
+            f"Missing {inst_path} -- please download MSCOCO instance "
+            f"annotations for the val set (see README)."
+        )
+    with open(inst_path) as f:
+        inst = json.load(f)
+    id_to_name = {cat["id"]: cat["name"] for cat in inst["categories"]}
+    for ann in inst["annotations"]:
+        imid = ann["image_id"]
+        if imid not in target_set:
+            continue
+        node_word = evaluator.inverse_synonym_dict[id_to_name[ann["category_id"]]]
+        evaluator.imid_to_objects[imid].append(node_word)
+
+    cap_path = os.path.join(coco_annotations, "captions_val2014.json")
+    if not os.path.exists(cap_path):
+        raise FileNotFoundError(
+            f"Missing {cap_path} -- please download MSCOCO caption "
+            f"annotations for the val set (see README)."
+        )
+    with open(cap_path) as f:
+        caps = json.load(f)
+    for ann in caps["annotations"]:
+        imid = ann["image_id"]
+        if imid not in target_set:
+            continue
+        _, node_words, _, _ = evaluator.caption_to_words(ann["caption"])
+        evaluator.imid_to_objects[imid].extend(node_words)
+
+    # same dedup step as the repo's own get_annotations()
+    for imid in list(evaluator.imid_to_objects):
+        evaluator.imid_to_objects[imid] = set(evaluator.imid_to_objects[imid])
+
+    if cache_path:
+        cache_dir = os.path.dirname(cache_path)
+        if cache_dir:
+            os.makedirs(cache_dir, exist_ok=True)
+        with open(cache_path, "wb") as f:
+            pickle.dump({"evaluator": evaluator, "image_ids": cache_key,
+                        "coco_annotations": coco_annotations}, f)
+        print(f"[extraction] cached targeted ground truth to: {cache_path}")
+
+    return evaluator
+
+
+def build_chair_full_corpus(marine_root: str, coco_annotations: str, cache_path: str):
+    """The repo's OWN full-corpus CHAIR build (both train+val, all ~617K
+    captions). NOT used by default -- build_chair_for_images() above is what
+    the sanity-check script actually calls, and is what you want unless you
+    have a specific reason to need ground truth for images outside your
+    current run (e.g. building one cache to reuse across many differently
+    sized sanity-check runs). This takes many minutes; see that function's
+    docstring for why.
 
     CAVEAT: pickle records a class's location as "<module>.<ClassName>". If the
     cache on disk was written by running eval/eval_chair.py DIRECTLY (`python
     eval/eval_chair.py ...`), CHAIR was pickled as "__main__.CHAIR" -- and
     __main__ here is THIS script, which has no CHAIR attribute, so unpickling
     fails. We treat that as a stale/incompatible cache rather than a fatal
-    error: warn, ignore it, and rebuild (one-off, ~1-2 min).
+    error: warn, ignore it, and rebuild.
     """
     _ensure_nltk()
     chair_mod = load_chair_module(marine_root)
@@ -113,7 +250,8 @@ def build_chair(marine_root: str, coco_annotations: str, cache_path: str):
             evaluator = None
 
     if evaluator is None:
-        print("[extraction] building CHAIR evaluator from COCO annotations (one-off, ~1-2 min)...")
+        print("[extraction] building CHAIR evaluator from the FULL COCO corpus "
+              "(train+val, ~617K captions -- this can take many minutes)...")
         evaluator = chair_mod.CHAIR(coco_annotations)
         if cache_path:
             cache_dir = os.path.dirname(cache_path)

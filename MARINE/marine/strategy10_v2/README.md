@@ -43,6 +43,39 @@ python ./scripts/eval_strategy10_v2_sanity.py \
 The report also prints a full κ sweep by default, which *is* the empirical
 selection procedure Sec 4.3.2 prescribes.
 
+## Why this is fast (and the repo's own CHAIR eval is slow)
+
+`eval/eval_chair.py`'s `CHAIR.__init__()` builds ground truth for the **entire**
+COCO corpus — both train and val splits, ~900K segmentation annotations, ~617K
+captions — and runs NLTK tokenisation + TextBlob singularisation on *every one*
+of those ~617K captions. That per-caption NLP call, not JSON parsing, is what
+actually costs the many minutes you'll see if you use it directly, and it reruns
+in full on every invocation because it doesn't know in advance which images
+you'll ask about.
+
+We always know in advance: every image in `data/org_qa/chair/coco_chair.json` is
+a `COCO_val2014_*` image, and we only ever score the N images actually being
+tested. So `extraction.build_chair_for_images()`:
+
+1. never opens `*_train2014.json` at all,
+2. filters `val2014`'s annotations/captions down to the requested images
+   *before* calling `caption_to_words()`, so NLP runs on `~5*N` captions
+   instead of ~617,000.
+
+It reuses the real `CHAIR.caption_to_words()` and the same
+`inverse_synonym_dict` the full build uses, so the resulting ground-truth labels
+are **identical** to what the slow, full-corpus build would produce for the same
+images (verified by a parity test) — this is purely a speed optimisation. For
+50 images this drops setup from several/many minutes to a few seconds.
+
+Results are cached to `cfg.chair_cache`, keyed on the exact set of image IDs
+requested — a cache built for 50 images is never silently reused for a
+different 200; it just rebuilds (which, again, is now fast).
+
+If you ever need ground truth for non-`val2014` images, `build_chair_full_corpus()`
+is still available (unused by default) and behaves exactly like the repo's own
+`eval/eval_chair.py` — slow, but general-purpose.
+
 ## Hyperparameters and why these values
 
 | symbol | flag | default | rationale |
@@ -110,7 +143,7 @@ config.py         hyperparameters (+ symbol map to the spec)
 prompts.py        vicuna_v1 prompt construction; the elicitation template c_elicit
 model_loader.py   LLaVA-1.5-7B in fp16 with eager attention (needed for the fallback)
 detector.py       OWL-ViT: s_det(w) + top box for the whole vocabulary in one pass
-extraction.py     CHAIR reuse: ExtractCanonicalObjects, GT lookup, vocabulary V
+extraction.py     CHAIR reuse: ExtractCanonicalObjects, TARGETED GT lookup, vocabulary V
 probes.py         Sec 4.1 probe sampling, co-occurrence-biased
 attribution.py    Sec 3.3: two-tier region R(w); patch-grid → original-pixel inverse
 masking.py        Sec 3.3: Mask(I, R(w)) with the per-channel mean pixel

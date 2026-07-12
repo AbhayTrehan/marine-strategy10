@@ -45,7 +45,7 @@ from marine.strategy10_v2 import report  # noqa: E402
 from marine.strategy10_v2.config import Strategy10V2Config  # noqa: E402
 from marine.strategy10_v2.detector import OwlViTDetector  # noqa: E402
 from marine.strategy10_v2.extraction import (  # noqa: E402
-    build_chair,
+    build_chair_for_images,
     coco_categories,
     load_cooccurrence,
     load_questions,
@@ -184,14 +184,16 @@ def main():
     rng = random.Random(cfg.seed)
 
     # ---------------- assets ------------------------------------------------
-    print("[setup] building CHAIR evaluator (object extraction + COCO ground truth)...")
-    evaluator = build_chair(REPO_ROOT, cfg.coco_annotations, cfg.chair_cache)
+    questions = load_questions(cfg.question_file, cfg.num_images)
+    print(f"[setup] {len(questions)} images from {cfg.question_file}")
+
+    print("[setup] building ground truth (object extraction + COCO GT) "
+          "for just these images...")
+    evaluator = build_chair_for_images(REPO_ROOT, cfg.coco_annotations, questions, cfg.chair_cache)
     vocabulary = coco_categories(evaluator)
     print(f"[setup] probe vocabulary V: {len(vocabulary)} canonical COCO categories")
 
     cooccur = load_cooccurrence(cfg.cooccur_file)
-    questions = load_questions(cfg.question_file, cfg.num_images)
-    print(f"[setup] {len(questions)} images from {cfg.question_file}")
 
     print(f"[setup] loading LVLM {cfg.model_path} ({'fp16' if cfg.fp16 else 'fp32'}, eager attn)...")
     model, tokenizer, processor = load_lvlm(cfg.model_path, cfg.fp16, cfg.device)
@@ -212,17 +214,26 @@ def main():
     records = []
     t0 = time.time()
     for i, (image_file, image_id) in enumerate(questions, start=1):
-        try:
+        if i == 1:
+            # No try/except on the first image. If something about the
+            # environment is wrong (wrong transformers version, misaligned
+            # image-token handling, OOM, etc.) this fails immediately and
+            # clearly with one full traceback -- instead of silently
+            # repeating the same failure across all N images and burying the
+            # real cause under 50 near-identical stack traces.
             rec = pipe.run_image(image_file, image_id, rng)
-        except Exception as exc:  # keep going; a single bad image shouldn't kill the run
-            import traceback
+        else:
+            try:
+                rec = pipe.run_image(image_file, image_id, rng)
+            except Exception as exc:  # a single bad image shouldn't kill the run
+                import traceback
 
-            traceback.print_exc()
-            rec = {
-                "image_file": image_file, "image_id": image_id, "caption": "",
-                "gt_objects": [], "objects": [], "probes": [],
-                "skipped": f"ERROR: {type(exc).__name__}: {exc}",
-            }
+                traceback.print_exc()
+                rec = {
+                    "image_file": image_file, "image_id": image_id, "caption": "",
+                    "gt_objects": [], "objects": [], "probes": [],
+                    "skipped": f"ERROR: {type(exc).__name__}: {exc}",
+                }
         records.append(rec)
         print(report.format_image_block(rec, i, len(questions)), flush=True)
 
