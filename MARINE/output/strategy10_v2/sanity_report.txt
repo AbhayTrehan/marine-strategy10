@@ -3,625 +3,805 @@
   caption : In the image, there is a laptop computer with a monitor, a keyboard, and a mouse. The laptop is placed on a desk, and there are headphones nearby. Additionally, there is a cell phone on the desk, and a router is also visible in the scene.
   GT COCO : dining table, keyboard, laptop
   probes  : K=20  (GT-present probes: 0 = 0.0%  [tau_low relaxed])
-  null    : mu_hat=-1.0258  sigma_hat=1.3363  -> tau(kappa=1.0) = +0.3105
+  null    : mu_hat=-0.8051  sigma_hat=1.1031  -> tau(kappa=1.0) = +0.2981
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  laptop         laptop compu  0.602  441/576   -0.304   -5.570   +5.266    +99.5%  VERIFIED      REAL          TN  (ok)
-  tv             monitor       0.639  238/576  -13.925  -13.441   -0.484    -62.3%  HALLUCINATED  HALLUCINATED  TP  (caught)
-  keyboard       keyboard      0.392  147/576   -6.984   -7.215   +0.231    +20.6%  HALLUCINATED  REAL          FP  (false flag)
-  mouse          mouse         0.309  462/576   -9.882   -7.218   -2.665  -1336.4%  HALLUCINATED  HALLUCINATED  TP  (caught)
-  dining table   desk          0.219  264/576   -5.461   -4.758   -0.702   -101.9%  HALLUCINATED  REAL          FP  (false flag)
-  cell phone     cell phone    0.275   50/576   -4.212   -4.238   +0.026     +2.6%  HALLUCINATED  HALLUCINATED  TP  (caught)
+  laptop         laptop compu  0.602  358/576   -0.304   -5.441   +5.136    +99.4%  VERIFIED      REAL          TN  (ok)
+  tv             monitor       0.639  207/576  -13.925  -13.674   -0.251    -28.5%  HALLUCINATED  HALLUCINATED  TP  (caught)
+  keyboard       keyboard      0.392  115/576   -6.984   -6.991   +0.007     +0.7%  HALLUCINATED  REAL          FP  (false flag)
+  mouse          mouse         0.309  399/576   -9.882   -6.769   -3.113  -2149.0%  HALLUCINATED  HALLUCINATED  TP  (caught)
+  dining table   desk          0.219  179/576   -5.461   -5.112   -0.348    -41.7%  HALLUCINATED  REAL          FP  (false flag)
+  cell phone     cell phone    0.275   45/576   -4.212   -4.202   -0.010     -1.0%  HALLUCINATED  HALLUCINATED  TP  (caught)
+  computer       computer      0.455  358/576   -2.054   -1.636   -0.419    -52.0%  HALLUCINATED  UNKNOWN       TN  (ok)
+  phone          phone         0.242  398/576  -12.195   -8.203   -3.992  -5316.3%  HALLUCINATED  UNKNOWN       TN  (ok)
 ======================================================================================================================
 [  2/50] COCO_val2014_000000164091.jpg   (image_id=164091)
   caption : In the image, there is a doll sitting in a baby carriage, a doll sitting on a bed, and a teddy bear. The doll in the baby carriage is wearing a white dress, and the doll on the bed is wearing a black dress. The teddy bear is also present in the scene.
   GT COCO : bed, person, teddy bear
   probes  : K=20  (GT-present probes: 0 = 0.0%  [tau_low relaxed])
-  null    : mu_hat=-0.2693  sigma_hat=0.6261  -> tau(kappa=1.0) = +0.3568
+  null    : mu_hat=-0.2188  sigma_hat=0.5201  -> tau(kappa=1.0) = +0.3014
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  bed            bed           0.425  285/576   -3.313   -4.208   +0.895    +59.1%  VERIFIED      REAL          TN  (ok)
-  teddy bear     teddy bear    0.523   42/576   -1.701   -2.054   +0.352    +29.7%  HALLUCINATED  REAL          FP  (false flag)
+  bed            bed           0.425  160/576   -3.313   -4.759   +1.446    +76.5%  VERIFIED      REAL          TN  (ok)
+  teddy bear     teddy bear    0.523   25/576   -1.701   -2.042   +0.341    +28.9%  VERIFIED      REAL          TN  (ok)
+  baby carriage  baby carriag  0.916  131/576   -3.628   -6.538   +2.910    +94.6%  VERIFIED      UNKNOWN       TN  (ok)
+  black          black         0.583   61/576   -7.782   -7.831   +0.049     +4.8%  HALLUCINATED  UNKNOWN       TN  (ok)
+  dress          dress         0.348   81/576   -6.563   -6.322   -0.241    -27.3%  HALLUCINATED  UNKNOWN       TN  (ok)
+  teddy          teddy         0.390  125/576   -2.551   -3.315   +0.764    +53.4%  VERIFIED      UNKNOWN       TN  (ok)
+  white          white         0.738  121/576   -4.938   -5.163   +0.225    +20.1%  HALLUCINATED  UNKNOWN       TN  (ok)
+  bear           bear          0.354  132/576  -10.266  -10.161   -0.105    -11.1%  HALLUCINATED  UNKNOWN       TN  (ok)
+  doll           doll          0.488  182/576   -0.438   -5.820   +5.382    +99.5%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [  3/50] COCO_val2014_000000308003.jpg   (image_id=308003)
   caption : In the image, there is a wooden bench with a green surface, a tree in the background, and a dirt area.
   GT COCO : bench, chair, dining table
   probes  : K=20  (GT-present probes: 0 = 0.0%  [tau_low relaxed])
-  null    : mu_hat=-0.9675  sigma_hat=0.6105  -> tau(kappa=1.0) = -0.3570
+  null    : mu_hat=-0.7327  sigma_hat=0.5246  -> tau(kappa=1.0) = -0.2081
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  bench          bench         0.534  552/576   -0.705   -2.475   +1.770    +83.0%  VERIFIED      REAL          TN  (ok)
+  bench          bench         0.534  413/576   -0.705   -3.402   +2.697    +93.3%  VERIFIED      REAL          TN  (ok)
+  green          green         0.657  310/576   -2.167   -6.762   +4.595    +99.0%  VERIFIED      UNKNOWN       TN  (ok)
+  dirt           dirt          0.404  122/576   -4.436   -4.444   +0.008     +0.8%  VERIFIED      UNKNOWN       TN  (ok)
+  tree           tree          0.442   90/576   -5.683   -5.623   -0.060     -6.2%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [  4/50] COCO_val2014_000000054870.jpg   (image_id=54870)
   caption : In the image, there is a plate with a sandwich and a salad. The sandwich is cut in half, and the salad consists of lettuce. There is also a knife placed next to the plate, which is likely used for cutting the sandwich.
   GT COCO : fork, knife, sandwich
   probes  : K=20  (GT-present probes: 0 = 0.0%  [tau_low relaxed])
-  null    : mu_hat=-0.1902  sigma_hat=0.7486  -> tau(kappa=1.0) = +0.5584
+  null    : mu_hat=+0.0289  sigma_hat=0.2445  -> tau(kappa=1.0) = +0.2734
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  sandwich       sandwich      0.371  260/576   -0.864   -3.514   +2.649    +92.9%  VERIFIED      REAL          TN  (ok)
-  knife          knife         0.387  195/576   -2.454   -5.025   +2.571    +92.4%  VERIFIED      REAL          TN  (ok)
+  sandwich       sandwich      0.371  173/576   -0.864   -3.516   +2.651    +92.9%  VERIFIED      REAL          TN  (ok)
+  knife          knife         0.387   52/576   -2.454   -5.007   +2.553    +92.2%  VERIFIED      REAL          TN  (ok)
+  lettuce        lettuce       0.357  356/576   -3.364   -5.716   +2.352    +90.5%  VERIFIED      UNKNOWN       TN  (ok)
+  plate          plate         0.741  107/576   -0.666   -1.075   +0.409    +33.6%  VERIFIED      UNKNOWN       TN  (ok)
+  salad          salad         0.593  276/576   -2.188   -3.938   +1.750    +82.6%  VERIFIED      UNKNOWN       TN  (ok)
+  half           half          0.504  161/576   -5.924   -7.496   +1.573    +79.3%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [  5/50] COCO_val2014_000000095908.jpg   (image_id=95908)
   caption : In the image, there is a computer mouse, a coffee pot, and a keyboard on a desk. The coffee pot is silver and is placed next to the computer mouse and keyboard.
   GT COCO : cup, dining table, keyboard, laptop, mouse
   probes  : K=20  (GT-present probes: 0 = 0.0%  [tau_low relaxed])
-  null    : mu_hat=+0.1271  sigma_hat=0.5714  -> tau(kappa=1.0) = +0.6985
+  null    : mu_hat=+0.1556  sigma_hat=0.5911  -> tau(kappa=1.0) = +0.7467
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  mouse          mouse         0.669   72/576   -2.286   -5.683   +3.398    +96.7%  VERIFIED      REAL          TN  (ok)
-  keyboard       keyboard      0.510  216/576   -4.528   -5.260   +0.733    +51.9%  VERIFIED      REAL          TN  (ok)
-  dining table   desk          0.450  504/576   -4.358   -2.823   -1.535   -364.0%  HALLUCINATED  REAL          FP  (false flag)
+  mouse          mouse         0.669   65/576   -2.286   -5.867   +3.581    +97.2%  VERIFIED      REAL          TN  (ok)
+  keyboard       keyboard      0.510  144/576   -4.528   -5.977   +1.449    +76.5%  VERIFIED      REAL          TN  (ok)
+  dining table   desk          0.450  198/576   -4.358   -4.330   -0.028     -2.9%  HALLUCINATED  REAL          FP  (false flag)
+  computer       computer      0.338  127/576   -0.817   -1.433   +0.616    +46.0%  HALLUCINATED  UNKNOWN       TN  (ok)
+  coffee         coffee        0.482  136/576   -1.997  -10.015   +8.019   +100.0%  VERIFIED      UNKNOWN       TN  (ok)
+  silver         silver        0.375  201/576   -2.231   -3.764   +1.534    +78.4%  VERIFIED      UNKNOWN       TN  (ok)
+  pot            pot           0.148  191/576   -6.942  -12.447   +5.505    +99.6%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [  6/50] COCO_val2014_000000329614.jpg   (image_id=329614)
   caption : In the image, there is a yellow double-decker bus, a car, a traffic light, a street light, a building, and a clock. The scene takes place at an intersection, with the bus and car driving through the area.
   GT COCO : bus, car, person
   probes  : K=20  (GT-present probes: 0 = 0.0%)
-  null    : mu_hat=-0.1243  sigma_hat=0.5019  -> tau(kappa=1.0) = +0.3775
+  null    : mu_hat=-0.2211  sigma_hat=0.5261  -> tau(kappa=1.0) = +0.3051
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  car            car           0.517   60/576   -3.396   -6.745   +3.348    +96.5%  VERIFIED      REAL          TN  (ok)
-  traffic light  traffic ligh  0.441   49/576   -2.308   -3.134   +0.826    +56.2%  VERIFIED      HALLUCINATED  FN  (missed)
+  car            car           0.517   49/576   -3.396   -6.605   +3.208    +96.0%  VERIFIED      REAL          TN  (ok)
+  traffic light  traffic ligh  0.441   42/576   -2.308   -3.157   +0.849    +57.2%  VERIFIED      HALLUCINATED  FN  (missed)
   clock          clock         0.400    0/576   -5.529   -5.529   +0.000     +0.0%  HALLUCINATED  HALLUCINATED  TP  (caught)
+  intersection   intersection  0.468  117/576   -8.623  -10.993   +2.370    +90.7%  VERIFIED      UNKNOWN       TN  (ok)
+  building       building      0.652  292/576   -5.045   -5.397   +0.353    +29.7%  VERIFIED      UNKNOWN       TN  (ok)
+  traffic        traffic       0.280   41/576   -4.091   -3.783   -0.308    -36.1%  HALLUCINATED  UNKNOWN       TN  (ok)
+  yellow         yellow        0.753   41/576   -1.966   -6.815   +4.848    +99.2%  VERIFIED      UNKNOWN       TN  (ok)
+  bus            bus           0.810   41/576   -2.435   -7.596   +5.161    +99.4%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [  7/50] COCO_val2014_000000324008.jpg   (image_id=324008)
   caption : In the image, there is a tray with various food items and drinks on it. The food items include a banana, a sandwich, and a bowl of fruit. The drinks consist of a cup of orange juice and a carton of milk. The tray is placed on a table
   GT COCO : airplane, banana, cup, dining table, orange, person, train
   probes  : K=20  (GT-present probes: 0 = 0.0%  [tau_low relaxed])
-  null    : mu_hat=-0.3605  sigma_hat=0.8576  -> tau(kappa=1.0) = +0.4971
+  null    : mu_hat=-0.1710  sigma_hat=0.3243  -> tau(kappa=1.0) = +0.1533
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  banana         banana        0.574   78/576   -2.396   -4.382   +1.986    +86.3%  VERIFIED      REAL          TN  (ok)
-  sandwich       sandwich      0.431   70/576   -3.206   -4.350   +1.144    +68.1%  VERIFIED      HALLUCINATED  FN  (missed)
-  bowl           bowl          0.437  360/576   -2.088   -5.317   +3.229    +96.0%  VERIFIED      HALLUCINATED  FN  (missed)
-  cup            cup           0.444   63/576   -6.894   -8.001   +1.107    +66.9%  VERIFIED      REAL          TN  (ok)
-  dining table   table         0.699  432/576   -1.886   -3.014   +1.128    +67.6%  VERIFIED      REAL          TN  (ok)
+  banana         banana        0.574   42/576   -2.396   -4.352   +1.956    +85.9%  VERIFIED      REAL          TN  (ok)
+  sandwich       sandwich      0.431   46/576   -3.206   -4.225   +1.019    +63.9%  VERIFIED      HALLUCINATED  FN  (missed)
+  bowl           bowl          0.437  147/576   -2.088   -2.498   +0.410    +33.7%  VERIFIED      HALLUCINATED  FN  (missed)
+  cup            cup           0.444   34/576   -6.894   -7.491   +0.597    +44.9%  VERIFIED      REAL          TN  (ok)
+  dining table   table         0.699  145/576   -1.886   -2.126   +0.240    +21.3%  VERIFIED      REAL          TN  (ok)
+  orange juice   orange juice  0.558   65/576   -3.554   -3.836   +0.282    +24.5%  VERIFIED      UNKNOWN       TN  (ok)
+  fruit          fruit         0.480  105/576   -6.683   -8.577   +1.894    +85.0%  VERIFIED      UNKNOWN       TN  (ok)
+  food           food          0.446  242/576   -4.230   -5.373   +1.143    +68.1%  VERIFIED      UNKNOWN       TN  (ok)
+  milk           milk          0.319  118/576   -8.839  -10.315   +1.476    +77.1%  VERIFIED      UNKNOWN       TN  (ok)
+  tray           tray          0.674  111/576   -0.275   -1.410   +1.135    +67.9%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [  8/50] COCO_val2014_000000052700.jpg   (image_id=52700)
   caption : In the image, there is a long table filled with various desserts, including cakes and cupcakes. The table is set up for a party or gathering, and there are several people standing around it. Some of the people are holding forks, ready to enjoy the delicious treats.
   GT COCO : cake, dining table, fork, handbag, person, spoon
   probes  : K=20  (GT-present probes: 0 = 0.0%)
-  null    : mu_hat=-0.4098  sigma_hat=0.6563  -> tau(kappa=1.0) = +0.2465
+  null    : mu_hat=-0.1204  sigma_hat=0.2032  -> tau(kappa=1.0) = +0.0828
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  dining table   table         0.720  408/576   -0.695   -2.940   +2.245    +89.4%  VERIFIED      REAL          TN  (ok)
-  cake           cake          0.572   86/576   -2.921   -3.322   +0.401    +33.0%  VERIFIED      REAL          TN  (ok)
-  person         person        0.597  333/576   -9.201  -10.382   +1.181    +69.3%  VERIFIED      REAL          TN  (ok)
-  fork           fork          0.252  408/576   -9.951  -11.582   +1.632    +80.4%  VERIFIED      REAL          TN  (ok)
+  dining table   table         0.720  131/576   -0.695   -0.788   +0.093     +8.9%  VERIFIED      REAL          TN  (ok)
+  cake           cake          0.572   70/576   -2.921   -3.400   +0.478    +38.0%  VERIFIED      REAL          TN  (ok)
+  person         person        0.597  232/576   -9.201  -10.505   +1.304    +72.9%  VERIFIED      REAL          TN  (ok)
+  fork           fork          0.252  135/576   -9.951   -9.485   -0.465    -59.2%  HALLUCINATED  REAL          FP  (false flag)
+  gathering      gathering     0.363  116/576   -4.757   -4.488   -0.268    -30.8%  HALLUCINATED  UNKNOWN       TN  (ok)
+  party          party         0.388  117/576   -7.060   -6.675   -0.385    -46.9%  HALLUCINATED  UNKNOWN       TN  (ok)
 ======================================================================================================================
 [  9/50] COCO_val2014_000000501311.jpg   (image_id=501311)
   caption : In the image, there are several objects visible. A baseball player is pitching a ball on a baseball field, and another player is standing in the outfield. There are two baseball gloves, one near the pitcher and the other further away. A sports ball, presumably the baseball, is in the air
   GT COCO : baseball glove, person, sports ball
   probes  : K=20  (GT-present probes: 0 = 0.0%)
-  null    : mu_hat=-0.1431  sigma_hat=0.4502  -> tau(kappa=1.0) = +0.3071
+  null    : mu_hat=-0.2376  sigma_hat=0.4419  -> tau(kappa=1.0) = +0.2043
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  person         player        0.712  100/576   -4.300   -6.941   +2.640    +92.9%  VERIFIED      REAL          TN  (ok)
-  sports ball    ball          0.352    4/576   -2.902   -3.039   +0.136    +12.7%  HALLUCINATED  REAL          FP  (false flag)
-  baseball glove baseball glo  0.542   14/576   -2.269   -2.420   +0.151    +14.0%  HALLUCINATED  REAL          FP  (false flag)
+  person         player        0.712   54/576   -4.300   -4.678   +0.378    +31.5%  VERIFIED      REAL          TN  (ok)
+  sports ball    ball          0.352    3/576   -2.902   -3.049   +0.147    +13.7%  HALLUCINATED  REAL          FP  (false flag)
+  baseball glove baseball glo  0.542   12/576   -2.269   -2.392   +0.123    +11.6%  HALLUCINATED  REAL          FP  (false flag)
+  baseball playe baseball pla  0.590   32/576   -0.934   -1.229   +0.294    +25.5%  VERIFIED      UNKNOWN       TN  (ok)
+  pitcher        pitcher       0.681   32/576   -0.686   -0.836   +0.151    +14.0%  HALLUCINATED  UNKNOWN       TN  (ok)
+  field          field         0.604  361/576   -5.105   -4.919   -0.186    -20.5%  HALLUCINATED  UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 10/50] COCO_val2014_000000247179.jpg   (image_id=247179)
   caption : In the image, there are several objects visible, including a decorated elephant, a man riding on top of the elephant, and a group of people standing around the elephant. The elephant is adorned with lights, making it a festive and eye-catching sight
   GT COCO : clock, elephant, person, truck
   probes  : K=20  (GT-present probes: 0 = 0.0%  [tau_low relaxed])
-  null    : mu_hat=-0.5681  sigma_hat=0.4667  -> tau(kappa=1.0) = -0.1014
+  null    : mu_hat=-0.8915  sigma_hat=0.5172  -> tau(kappa=1.0) = -0.3744
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  elephant       elephant      0.423  321/576   -2.425   -2.856   +0.431    +35.0%  VERIFIED      REAL          TN  (ok)
-  person         man           0.598  190/576   -4.522   -4.273   -0.250    -28.3%  HALLUCINATED  REAL          FP  (false flag)
+  elephant       elephant      0.423  192/576   -2.425   -2.363   -0.062     -6.3%  VERIFIED      REAL          TN  (ok)
+  person         man           0.598  140/576   -4.522   -4.763   +0.240    +21.4%  VERIFIED      REAL          TN  (ok)
 ======================================================================================================================
 [ 11/50] COCO_val2014_000000577912.jpg   (image_id=577912)
   caption : In the image, there is a white toilet, a white bathtub, a sink, a mirror, and a window. The bathroom also features a shower head and a towel rack.
   GT COCO : bottle, sink, toilet, toothbrush
   probes  : K=20  (GT-present probes: 0 = 0.0%)
-  null    : mu_hat=-0.0037  sigma_hat=0.3280  -> tau(kappa=1.0) = +0.3243
+  null    : mu_hat=-0.0177  sigma_hat=0.2900  -> tau(kappa=1.0) = +0.2722
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  toilet         toilet        0.634   49/576   -0.535   -1.388   +0.853    +57.4%  VERIFIED      REAL          TN  (ok)
-  sink           sink          0.574   40/576   -2.893   -4.235   +1.343    +73.9%  VERIFIED      REAL          TN  (ok)
+  toilet         toilet        0.634   43/576   -0.535   -1.362   +0.827    +56.3%  VERIFIED      REAL          TN  (ok)
+  sink           sink          0.574   28/576   -2.893   -4.242   +1.350    +74.1%  VERIFIED      REAL          TN  (ok)
+  shower head    shower head   0.463   15/576   -3.403   -3.729   +0.327    +27.9%  VERIFIED      UNKNOWN       TN  (ok)
+  bathroom       bathroom      0.666  387/576   -0.680   -0.829   +0.149    +13.9%  HALLUCINATED  UNKNOWN       TN  (ok)
+  mirror         mirror        0.536   62/576   -5.775   -5.266   -0.510    -66.5%  HALLUCINATED  UNKNOWN       TN  (ok)
+  window         window        0.783   63/576   -5.658   -7.606   +1.947    +85.7%  VERIFIED      UNKNOWN       TN  (ok)
+  towel          towel         0.206  154/576   -4.513   -4.177   -0.337    -40.0%  HALLUCINATED  UNKNOWN       TN  (ok)
+  white          white         0.324  225/576   -1.619   -3.307   +1.688    +81.5%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 12/50] COCO_val2014_000000196341.jpg   (image_id=196341)
   caption : In the image, there are several people, a clock, and a window. The clock is located on the wall, and the window is above the clock. The people are standing around the clock and the window, possibly admiring the view or waiting for something.
   GT COCO : clock, handbag, person
   probes  : K=20  (GT-present probes: 0 = 0.0%)
-  null    : mu_hat=-1.1931  sigma_hat=0.9781  -> tau(kappa=1.0) = -0.2150
+  null    : mu_hat=-1.0560  sigma_hat=0.9313  -> tau(kappa=1.0) = -0.1247
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  person         person        0.649  178/576   -5.436   -3.483   -1.953   -604.8%  HALLUCINATED  REAL          FP  (false flag)
-  clock          clock         0.633  324/576   -1.772   -7.175   +5.403    +99.5%  VERIFIED      REAL          TN  (ok)
+  person         person        0.649  134/576   -5.436   -3.864   -1.572   -381.6%  HALLUCINATED  REAL          FP  (false flag)
+  clock          clock         0.633  211/576   -1.772   -6.957   +5.185    +99.4%  VERIFIED      REAL          TN  (ok)
+  window         window        0.359  221/576   -6.967   -7.309   +0.342    +29.0%  VERIFIED      UNKNOWN       TN  (ok)
+  wall           wall          0.354  189/576   -5.529   -5.763   +0.234    +20.8%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 13/50] COCO_val2014_000000234433.jpg   (image_id=234433)
   caption : In the image, there is a sign on a pole, a bicycle, a car, and a truck. The sign is located on a street corner, and the bicycle is parked nearby. The car and the truck are parked in the background, with the car being closer to the
   GT COCO : bicycle, car, person, traffic light
   probes  : K=20  (GT-present probes: 0 = 0.0%)
-  null    : mu_hat=-0.0744  sigma_hat=0.6321  -> tau(kappa=1.0) = +0.5577
+  null    : mu_hat=-0.0680  sigma_hat=0.6315  -> tau(kappa=1.0) = +0.5635
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  bicycle        bicycle       0.683    9/576   -1.003   -1.461   +0.458    +36.7%  HALLUCINATED  REAL          FP  (false flag)
+  bicycle        bicycle       0.683    8/576   -1.003   -1.583   +0.580    +44.0%  VERIFIED      REAL          TN  (ok)
   car            car           0.547   22/576   -5.328   -7.537   +2.209    +89.0%  VERIFIED      REAL          TN  (ok)
   truck          truck         0.564   18/576   -4.696   -5.475   +0.778    +54.1%  VERIFIED      HALLUCINATED  FN  (missed)
+  street corner  street corne  0.270  233/576   -2.986   -3.518   +0.533    +41.3%  HALLUCINATED  UNKNOWN       TN  (ok)
+  pole           pole          0.543  108/576   -1.953   -4.369   +2.416    +91.1%  VERIFIED      UNKNOWN       TN  (ok)
+  sign           sign          0.769   78/576   -1.804   -7.781   +5.976    +99.7%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 14/50] COCO_val2014_000000455610.jpg   (image_id=455610)
   caption : In the image, there is a red motorcycle with chrome and green accents, a man standing next to it, and another man standing further away. There is also a stop sign visible in the background.
   GT COCO : car, motorcycle, person, traffic light
   probes  : K=20  (GT-present probes: 0 = 0.0%  [tau_low relaxed])
-  null    : mu_hat=-1.2923  sigma_hat=0.8895  -> tau(kappa=1.0) = -0.4028
+  null    : mu_hat=-2.1406  sigma_hat=1.4821  -> tau(kappa=1.0) = -0.6585
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  motorcycle     motorcycle    0.748  576/576   -0.675   -5.430   +4.755    +99.1%  VERIFIED      REAL          TN  (ok)
-  person         man           0.630   36/576   -6.847   -7.707   +0.861    +57.7%  VERIFIED      REAL          TN  (ok)
-  stop sign      stop sign     0.320   12/576   -4.535   -4.584   +0.050     +4.8%  VERIFIED      HALLUCINATED  FN  (missed)
+  motorcycle     motorcycle    0.748  342/576   -0.675   -4.442   +3.768    +97.7%  VERIFIED      REAL          TN  (ok)
+  person         man           0.630   32/576   -6.847   -7.452   +0.606    +45.4%  VERIFIED      REAL          TN  (ok)
+  stop sign      stop sign     0.320    9/576   -4.535   -4.618   +0.083     +8.0%  VERIFIED      HALLUCINATED  FN  (missed)
+  green          green         0.746  338/576   -8.534   -7.996   -0.538    -71.3%  VERIFIED      UNKNOWN       TN  (ok)
+  sign           sign          0.594  342/576  -10.698   -9.281   -1.417   -312.6%  HALLUCINATED  UNKNOWN       TN  (ok)
+  red            red           0.858  342/576   -1.276   -4.422   +3.145    +95.7%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 15/50] COCO_val2014_000000039053.jpg   (image_id=39053)
   caption : In the image, there are several objects visible on the dining table. These include a bowl of food, a plate of food, a cup, a fork, a spoon, a knife, and a cell phone. The table is set with a variety of food items, such as a bowl of
   GT COCO : apple, bowl, cake, cell phone, cup, dining table, spoon
   probes  : K=20  (GT-present probes: 0 = 0.0%  [tau_low relaxed])
-  null    : mu_hat=-0.6181  sigma_hat=1.2983  -> tau(kappa=1.0) = +0.6802
+  null    : mu_hat=-0.3537  sigma_hat=0.4589  -> tau(kappa=1.0) = +0.1053
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  dining table   table         0.608  576/576   -0.555   -2.534   +1.979    +86.2%  VERIFIED      REAL          TN  (ok)
-  bowl           bowl          0.538  104/576   -2.236   -1.553   -0.683    -98.0%  HALLUCINATED  REAL          FP  (false flag)
-  cup            cup           0.298   24/576   -9.691  -10.638   +0.947    +61.2%  VERIFIED      REAL          TN  (ok)
-  fork           fork          0.347  116/576   -7.855   -7.261   -0.595    -81.2%  HALLUCINATED  HALLUCINATED  TP  (caught)
-  spoon          spoon         0.279  116/576   -3.991   -3.595   -0.396    -48.6%  HALLUCINATED  REAL          FP  (false flag)
-  knife          knife         0.198   24/576   -5.157   -5.272   +0.115    +10.9%  HALLUCINATED  HALLUCINATED  TP  (caught)
-  cell phone     cell phone    0.252    4/576   -5.348   -5.408   +0.060     +5.8%  HALLUCINATED  REAL          FP  (false flag)
+  dining table   table         0.608  249/576   -0.555   -0.913   +0.358    +30.1%  VERIFIED      REAL          TN  (ok)
+  bowl           bowl          0.538   63/576   -2.236   -2.172   -0.064     -6.6%  HALLUCINATED  REAL          FP  (false flag)
+  cup            cup           0.298   21/576   -9.691  -10.564   +0.873    +58.2%  VERIFIED      REAL          TN  (ok)
+  fork           fork          0.347   74/576   -7.855   -7.014   -0.841   -131.8%  HALLUCINATED  HALLUCINATED  TP  (caught)
+  spoon          spoon         0.279   74/576   -3.991   -3.823   -0.168    -18.3%  HALLUCINATED  REAL          FP  (false flag)
+  knife          knife         0.198   11/576   -5.157   -5.185   +0.028     +2.8%  HALLUCINATED  HALLUCINATED  TP  (caught)
+  cell phone     cell phone    0.252    2/576   -5.348   -5.287   -0.061     -6.3%  HALLUCINATED  REAL          FP  (false flag)
+  variety        variety       0.308  180/576   -1.894   -2.280   +0.386    +32.0%  VERIFIED      UNKNOWN       TN  (ok)
+  phone          phone         0.291    6/576  -15.035  -15.859   +0.824    +56.1%  VERIFIED      UNKNOWN       TN  (ok)
+  plate          plate         0.429  159/576   -3.926   -2.716   -1.210   -235.3%  HALLUCINATED  UNKNOWN       TN  (ok)
+  food           food          0.637  267/576   -5.754   -5.198   -0.555    -74.3%  HALLUCINATED  UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 16/50] COCO_val2014_000000493862.jpg   (image_id=493862)
   caption : In the image, there is a person holding a tennis racket, a dog running in the background, and a tennis ball. The person is standing on a grassy field, and the dog is chasing the tennis ball.
   GT COCO : dog, person, tennis racket
   probes  : K=20  (GT-present probes: 0 = 0.0%)
-  null    : mu_hat=-0.1137  sigma_hat=0.3656  -> tau(kappa=1.0) = +0.2519
+  null    : mu_hat=-0.1810  sigma_hat=0.3209  -> tau(kappa=1.0) = +0.1399
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  person         person        0.889  154/576   -1.786   -3.688   +1.902    +85.1%  VERIFIED      REAL          TN  (ok)
-  tennis racket  racket        0.672   28/576   -0.316   -3.201   +2.886    +94.4%  VERIFIED      REAL          TN  (ok)
-  dog            dog           0.599    8/576   -7.349   -9.705   +2.356    +90.5%  VERIFIED      REAL          TN  (ok)
+  person         person        0.889   62/576   -1.786   -3.031   +1.245    +71.2%  VERIFIED      REAL          TN  (ok)
+  tennis racket  racket        0.672   13/576   -0.316   -2.785   +2.469    +91.5%  VERIFIED      REAL          TN  (ok)
+  dog            dog           0.599    5/576   -7.349  -10.058   +2.709    +93.3%  VERIFIED      REAL          TN  (ok)
   sports ball    ball          0.373    1/576   -2.797   -2.784   -0.013     -1.3%  HALLUCINATED  HALLUCINATED  TP  (caught)
+  grassy         grassy        0.738  298/576   -2.688   -3.128   +0.439    +35.6%  VERIFIED      UNKNOWN       TN  (ok)
+  tennis         tennis        0.419   13/576   -0.395   -6.523   +6.127    +99.8%  VERIFIED      UNKNOWN       TN  (ok)
+  field          field         0.771  298/576   -6.122   -6.265   +0.143    +13.3%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 17/50] COCO_val2014_000000269873.jpg   (image_id=269873)
   caption : In the image, there is a large group of people walking down a city street. They are crossing a street at an intersection, and some of them are carrying handbags. There are also a few traffic lights visible in the scene, one near the left side of the image and another towards the right side. The
   GT COCO : bus, car, person, traffic light
   probes  : K=20  (GT-present probes: 0 = 0.0%)
-  null    : mu_hat=-0.2802  sigma_hat=0.4504  -> tau(kappa=1.0) = +0.1702
+  null    : mu_hat=+0.0253  sigma_hat=0.2994  -> tau(kappa=1.0) = +0.3247
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  person         person        0.472  231/576   -5.143   -6.839   +1.696    +81.7%  VERIFIED      REAL          TN  (ok)
-  handbag        handbag       0.320   27/576   -5.092   -4.732   -0.359    -43.3%  HALLUCINATED  HALLUCINATED  TP  (caught)
-  traffic light  traffic ligh  0.528    9/576   -3.214   -3.306   +0.092     +8.8%  HALLUCINATED  REAL          FP  (false flag)
+  person         person        0.472  179/576   -5.143   -5.823   +0.680    +49.4%  VERIFIED      REAL          TN  (ok)
+  handbag        handbag       0.319   23/576   -5.092   -4.823   -0.269    -30.9%  HALLUCINATED  HALLUCINATED  TP  (caught)
+  traffic light  traffic ligh  0.528    6/576   -3.214   -3.321   +0.107    +10.2%  HALLUCINATED  REAL          FP  (false flag)
+  intersection   intersection  0.309   76/576  -11.010  -10.782   -0.229    -25.7%  HALLUCINATED  UNKNOWN       TN  (ok)
+  city street    city street   0.301  110/576   -1.603   -1.465   -0.138    -14.8%  HALLUCINATED  UNKNOWN       TN  (ok)
+  traffic        traffic       0.350   77/576   -5.916   -5.954   +0.037     +3.7%  HALLUCINATED  UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 18/50] COCO_val2014_000000524656.jpg   (image_id=524656)
   caption : In the image, there is a kitchen with various appliances and items. Some of the objects visible include a sink, a microwave, a toaster, a refrigerator, a stove, a window, a dish rack, a dishwasher, a cupboard,
   GT COCO : bottle, bowl, cup, knife, microwave, oven, refrigerator, sink, spoon, toaster, wine glass
   probes  : K=20  (GT-present probes: 0 = 0.0%  [tau_low relaxed])
-  null    : mu_hat=-0.2104  sigma_hat=0.2043  -> tau(kappa=1.0) = -0.0060
+  null    : mu_hat=-0.1955  sigma_hat=0.1809  -> tau(kappa=1.0) = -0.0146
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  sink           sink          0.538   18/576   -3.088   -4.571   +1.484    +77.3%  VERIFIED      REAL          TN  (ok)
-  microwave      microwave     0.679   63/576   -1.136   -2.373   +1.236    +71.0%  VERIFIED      REAL          TN  (ok)
-  toaster        toaster       0.580   63/576   -4.481   -5.699   +1.218    +70.4%  VERIFIED      REAL          TN  (ok)
-  refrigerator   refrigerator  0.683   28/576   -1.697   -1.693   -0.004     -0.4%  VERIFIED      REAL          TN  (ok)
-  oven           stove         0.729   63/576   -5.371   -6.598   +1.227    +70.7%  VERIFIED      REAL          TN  (ok)
+  sink           sink          0.538   12/576   -3.088   -4.279   +1.191    +69.6%  VERIFIED      REAL          TN  (ok)
+  microwave      microwave     0.679   43/576   -1.136   -2.360   +1.224    +70.6%  VERIFIED      REAL          TN  (ok)
+  toaster        toaster       0.580   42/576   -4.481   -5.844   +1.363    +74.4%  VERIFIED      REAL          TN  (ok)
+  refrigerator   refrigerator  0.683   24/576   -1.697   -1.734   +0.037     +3.7%  VERIFIED      REAL          TN  (ok)
+  oven           stove         0.729   43/576   -5.371   -6.502   +1.131    +67.7%  VERIFIED      REAL          TN  (ok)
+  appliance      appliance     0.676   42/576   -6.266   -7.404   +1.138    +67.9%  VERIFIED      UNKNOWN       TN  (ok)
+  kitchen        kitchen       0.545   85/576   -0.697   -0.673   -0.024     -2.5%  HALLUCINATED  UNKNOWN       TN  (ok)
+  window         window        0.704  172/576   -4.541   -6.612   +2.071    +87.4%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 19/50] COCO_val2014_000000369547.jpg   (image_id=369547)
   caption : In the image, there is a dog sitting on a rocky surface, and a bird is flying nearby. The dog is positioned towards the left side of the image, while the bird is flying towards the right side. The scene captures the interaction between the dog and the bird in their natural environment.
   GT COCO : bird, cat, dog
   probes  : K=20  (GT-present probes: 0 = 0.0%)
-  null    : mu_hat=-0.8030  sigma_hat=0.8300  -> tau(kappa=1.0) = +0.0270
+  null    : mu_hat=-0.8135  sigma_hat=0.7772  -> tau(kappa=1.0) = -0.0364
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  dog            dog           0.814   56/576   -0.474   -6.746   +6.272    +99.8%  VERIFIED      REAL          TN  (ok)
-  bird           bird          0.422   80/576   -4.192   -7.832   +3.640    +97.4%  VERIFIED      REAL          TN  (ok)
+  dog            dog           0.814   40/576   -0.474   -6.479   +6.006    +99.8%  VERIFIED      REAL          TN  (ok)
+  bird           bird          0.422   58/576   -4.192   -7.904   +3.712    +97.6%  VERIFIED      REAL          TN  (ok)
+  rocky          rocky         0.715  558/576   -2.054   -5.764   +3.710    +97.6%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 20/50] COCO_val2014_000000181446.jpg   (image_id=181446)
   caption : In the image, there is a man standing in front of an open refrigerator, which is filled with various food items. The man is wearing glasses and appears to be looking at the camera. The refrigerator contains several bottles, some of which are placed on the top shelf,
   GT COCO : bottle, bowl, person, refrigerator, sink
   probes  : K=20  (GT-present probes: 0 = 0.0%)
-  null    : mu_hat=-0.5655  sigma_hat=1.3347  -> tau(kappa=1.0) = +0.7693
+  null    : mu_hat=-0.5553  sigma_hat=0.6442  -> tau(kappa=1.0) = +0.0888
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  person         man           0.703  552/576   -3.174   -5.571   +2.397    +90.9%  VERIFIED      REAL          TN  (ok)
-  refrigerator   refrigerator  0.876  240/576   -0.188   -2.052   +1.863    +84.5%  VERIFIED      REAL          TN  (ok)
-  bottle         bottle        0.479   79/576   -4.004   -4.850   +0.846    +57.1%  VERIFIED      REAL          TN  (ok)
+  person         man           0.703  302/576   -3.174   -8.469   +5.295    +99.5%  VERIFIED      REAL          TN  (ok)
+  refrigerator   refrigerator  0.876  134/576   -0.188   -1.872   +1.684    +81.4%  VERIFIED      REAL          TN  (ok)
+  bottle         bottle        0.479   39/576   -4.004   -4.854   +0.849    +57.2%  VERIFIED      REAL          TN  (ok)
+  glasses        glasses       0.413   22/576   -7.242   -9.073   +1.830    +84.0%  VERIFIED      UNKNOWN       TN  (ok)
+  shelf          shelf         0.297  134/576   -4.071   -4.136   +0.065     +6.3%  HALLUCINATED  UNKNOWN       TN  (ok)
+  food           food          0.340   69/576   -8.924   -9.416   +0.492    +38.9%  VERIFIED      UNKNOWN       TN  (ok)
+  open           open          0.653  302/576   -8.111   -6.547   -1.564   -378.0%  HALLUCINATED  UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 21/50] COCO_val2014_000000128119.jpg   (image_id=128119)
   caption : In the image, there is a bus with bicycles attached to the front of it, a person standing next to the bus, and a backpack. The bus is parked on the side of the street, and the bicycles are securely fastened to the front of the bus.
   GT COCO : backpack, bicycle, bus, cell phone, handbag, person
   probes  : K=20  (GT-present probes: 0 = 0.0%  [tau_low relaxed])
-  null    : mu_hat=-1.2993  sigma_hat=1.3392  -> tau(kappa=1.0) = +0.0399
+  null    : mu_hat=-0.9626  sigma_hat=1.0207  -> tau(kappa=1.0) = +0.0581
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  bicycle        bicycle       0.416   90/576   -0.601   -1.958   +1.358    +74.3%  VERIFIED      REAL          TN  (ok)
-  person         person        0.593   24/576   -6.575   -6.847   +0.272    +23.8%  VERIFIED      REAL          TN  (ok)
-  backpack       backpack      0.347  462/576   -3.535   -5.173   +1.638    +80.6%  VERIFIED      REAL          TN  (ok)
+  bicycle        bicycle       0.416   64/576   -0.601   -0.833   +0.232    +20.7%  VERIFIED      REAL          TN  (ok)
+  person         person        0.593   15/576   -6.575   -6.793   +0.218    +19.6%  VERIFIED      REAL          TN  (ok)
+  backpack       backpack      0.347  366/576   -3.535   -5.163   +1.628    +80.4%  VERIFIED      REAL          TN  (ok)
+  bus            bus           0.904  338/576   -0.895   -6.157   +5.262    +99.5%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 22/50] COCO_val2014_000000401027.jpg   (image_id=401027)
   caption : In the image, there is a plate with a sandwich, a bowl of sauce, and a glass of water. The sandwich is cut in half, and there are tomatoes and lettuce visible on it. The dining table is set with a fork and a knife, and there is a
   GT COCO : cup, dining table, fork, knife, sandwich
   probes  : K=20  (GT-present probes: 0 = 0.0%)
-  null    : mu_hat=-0.5121  sigma_hat=1.2405  -> tau(kappa=1.0) = +0.7283
+  null    : mu_hat=-0.0078  sigma_hat=0.3610  -> tau(kappa=1.0) = +0.3531
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  sandwich       sandwich      0.405  320/576   -0.754   -4.279   +3.525    +97.1%  VERIFIED      REAL          TN  (ok)
-  bowl           bowl          0.403   49/576   -3.199   -3.504   +0.305    +26.3%  HALLUCINATED  HALLUCINATED  TP  (caught)
-  dining table   table         0.772  552/576   -1.517   -0.523   -0.993   -170.1%  HALLUCINATED  REAL          FP  (false flag)
-  fork           fork          0.453   12/576   -7.632   -7.715   +0.082     +7.9%  HALLUCINATED  REAL          FP  (false flag)
+  sandwich       sandwich      0.405  153/576   -0.754   -1.709   +0.955    +61.5%  VERIFIED      REAL          TN  (ok)
+  bowl           bowl          0.403   31/576   -3.199   -3.522   +0.323    +27.6%  HALLUCINATED  HALLUCINATED  TP  (caught)
+  dining table   table         0.772  162/576   -1.517   -1.481   -0.036     -3.7%  HALLUCINATED  REAL          FP  (false flag)
+  fork           fork          0.453    4/576   -7.632   -7.737   +0.105    +10.0%  HALLUCINATED  REAL          FP  (false flag)
   knife          knife         0.410    0/576   -4.170   -4.170   +0.000     +0.0%  HALLUCINATED  REAL          FP  (false flag)
+  lettuce        lettuce       0.350  159/576   -4.500   -5.015   +0.515    +40.2%  VERIFIED      UNKNOWN       TN  (ok)
+  plate          plate         0.648  181/576   -0.710   -1.431   +0.721    +51.4%  VERIFIED      UNKNOWN       TN  (ok)
+  sauce          sauce         0.308  181/576   -5.129   -5.592   +0.462    +37.0%  VERIFIED      UNKNOWN       TN  (ok)
+  water          water         0.654   40/576  -10.882  -10.634   -0.248    -28.2%  HALLUCINATED  UNKNOWN       TN  (ok)
+  half           half          0.610   96/576   -5.320   -6.990   +1.670    +81.2%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 23/50] COCO_val2014_000000253630.jpg   (image_id=253630)
   caption : In the image, there is a large brown coffee table with a glass top, a potted plant, a television, a laptop, a keyboard, a mouse, and a chair. The coffee table is placed in a living room, and the potted plant is located near the table. The television is situated on the
   GT COCO : chair, dining table, potted plant, tv
   probes  : K=20  (GT-present probes: 0 = 0.0%)
-  null    : mu_hat=-0.3297  sigma_hat=0.6431  -> tau(kappa=1.0) = +0.3134
+  null    : mu_hat=-0.5696  sigma_hat=1.0033  -> tau(kappa=1.0) = +0.4337
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  dining table   table         0.687  352/576   -1.407   -2.381   +0.974    +62.2%  VERIFIED      REAL          TN  (ok)
-  potted plant   potted plant  0.718   42/576   -2.182   -3.252   +1.069    +65.7%  VERIFIED      REAL          TN  (ok)
-  tv             television    0.664   15/576   -9.016  -10.076   +1.060    +65.4%  VERIFIED      REAL          TN  (ok)
-  laptop         laptop        0.221   15/576   -9.258   -9.834   +0.576    +43.8%  VERIFIED      HALLUCINATED  FN  (missed)
-  keyboard       keyboard      0.227  352/576  -12.090  -10.155   -1.934   -592.0%  HALLUCINATED  HALLUCINATED  TP  (caught)
-  mouse          mouse         0.238  352/576  -11.875  -10.597   -1.278   -259.0%  HALLUCINATED  HALLUCINATED  TP  (caught)
-  chair          chair         0.505   92/576   -6.055   -7.918   +1.863    +84.5%  VERIFIED      REAL          TN  (ok)
+  dining table   table         0.687  172/576   -1.407   -2.587   +1.180    +69.3%  VERIFIED      REAL          TN  (ok)
+  potted plant   potted plant  0.718   26/576   -2.182   -3.183   +1.001    +63.2%  VERIFIED      REAL          TN  (ok)
+  tv             television    0.664    9/576   -9.016   -9.717   +0.701    +50.4%  VERIFIED      REAL          TN  (ok)
+  laptop         laptop        0.221    9/576   -9.258   -9.662   +0.404    +33.3%  HALLUCINATED  HALLUCINATED  TP  (caught)
+  keyboard       keyboard      0.227  172/576  -12.090   -9.975   -2.115   -729.1%  HALLUCINATED  HALLUCINATED  TP  (caught)
+  mouse          mouse         0.238  172/576  -11.875   -9.947   -1.928   -587.3%  HALLUCINATED  HALLUCINATED  TP  (caught)
+  chair          chair         0.505   64/576   -6.055   -7.707   +1.652    +80.8%  VERIFIED      REAL          TN  (ok)
+  living room    living room   0.765  152/576   -1.271   -1.573   +0.301    +26.0%  HALLUCINATED  UNKNOWN       TN  (ok)
+  coffee         coffee        0.450  172/576   -1.672   -4.525   +2.854    +94.2%  VERIFIED      UNKNOWN       TN  (ok)
+  brown          brown         0.555   58/576   -2.687   -2.530   -0.157    -17.0%  HALLUCINATED  UNKNOWN       TN  (ok)
+  plant          plant         0.693   22/576   -9.101  -11.821   +2.720    +93.4%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 24/50] COCO_val2014_000000326021.jpg   (image_id=326021)
   caption : In the image, there is a woman sitting at a table with a teddy bear on it. The teddy bear is wearing a red ribbon. The table is covered with a red tablecloth. There is also a sign on the table, which appears to be related to the teddy bear.
   GT COCO : dining table, person, teddy bear
   probes  : K=20  (GT-present probes: 0 = 0.0%  [tau_low relaxed])
-  null    : mu_hat=-0.3423  sigma_hat=0.3936  -> tau(kappa=1.0) = +0.0512
+  null    : mu_hat=-0.2145  sigma_hat=0.3847  -> tau(kappa=1.0) = +0.1702
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  person         woman         0.584  154/576   -3.953   -8.065   +4.112    +98.4%  VERIFIED      REAL          TN  (ok)
-  dining table   table         0.455  264/576   -1.695   -3.076   +1.381    +74.9%  VERIFIED      REAL          TN  (ok)
-  teddy bear     teddy bear    0.860  136/576   -0.763   -2.928   +2.166    +88.5%  VERIFIED      REAL          TN  (ok)
+  person         woman         0.584  108/576   -3.953   -8.089   +4.136    +98.4%  VERIFIED      REAL          TN  (ok)
+  dining table   table         0.455  130/576   -1.695   -2.676   +0.981    +62.5%  VERIFIED      REAL          TN  (ok)
+  teddy bear     teddy bear    0.860  101/576   -0.763   -2.981   +2.218    +89.1%  VERIFIED      REAL          TN  (ok)
+  tablecloth     tablecloth    0.661  131/576   -2.204   -3.810   +1.606    +79.9%  VERIFIED      UNKNOWN       TN  (ok)
+  teddy          teddy         0.794   77/576   -1.144   -3.234   +2.090    +87.6%  VERIFIED      UNKNOWN       TN  (ok)
+  bear           bear          0.609   77/576   -5.507   -7.655   +2.148    +88.3%  VERIFIED      UNKNOWN       TN  (ok)
+  sign           sign          0.471  203/576   -5.125  -11.422   +6.297    +99.8%  VERIFIED      UNKNOWN       TN  (ok)
+  red            red           0.550  130/576   -2.843   -6.764   +3.921    +98.0%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 25/50] COCO_val2014_000000317320.jpg   (image_id=317320)
   caption : In the image, there are two bicycles, one with a person riding it and another with a person sitting on the back. The person riding the bicycle is wearing a blue shirt. Additionally, there is a motorcycle in the scene, with a person sitting on it. The motor
   GT COCO : bicycle, motorcycle, person
   probes  : K=20  (GT-present probes: 0 = 0.0%  [tau_low relaxed])
-  null    : mu_hat=-1.3569  sigma_hat=1.2098  -> tau(kappa=1.0) = -0.1472
+  null    : mu_hat=-0.6109  sigma_hat=0.9100  -> tau(kappa=1.0) = +0.2992
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  bicycle        bicycle       0.880  414/576   -0.114   -0.413   +0.299    +25.8%  VERIFIED      REAL          TN  (ok)
-  person         person        0.657  186/576   -2.651   -3.590   +0.939    +60.9%  VERIFIED      REAL          TN  (ok)
-  motorcycle     motorcycle    0.486  440/576   -2.194   -3.449   +1.256    +71.5%  VERIFIED      REAL          TN  (ok)
+  bicycle        bicycle       0.880  233/576   -0.114   -1.266   +1.152    +68.4%  VERIFIED      REAL          TN  (ok)
+  person         person        0.657   86/576   -2.651   -5.539   +2.888    +94.4%  VERIFIED      REAL          TN  (ok)
+  motorcycle     motorcycle    0.486  289/576   -2.194   -4.261   +2.067    +87.3%  VERIFIED      REAL          TN  (ok)
+  shirt          shirt         0.364  250/576   -4.737   -3.701   -1.036   -181.8%  HALLUCINATED  UNKNOWN       TN  (ok)
+  blue           blue          0.561   54/576   -8.409   -8.392   -0.017     -1.7%  HALLUCINATED  UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 26/50] COCO_val2014_000000507171.jpg   (image_id=507171)
   caption : In the image, there is a man surfing on a wave in the ocean. He is riding a surfboard, and the water is splashing around him. The scene also features a bridge in the background, adding to the overall atmosphere of the image.
   GT COCO : cat, person, surfboard
   probes  : K=20  (GT-present probes: 1 = 5.0%)
-  null    : mu_hat=-0.6869  sigma_hat=0.8911  -> tau(kappa=1.0) = +0.2043
+  null    : mu_hat=-0.5410  sigma_hat=0.8133  -> tau(kappa=1.0) = +0.2723
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  person         man           0.878   91/576   -1.893   -4.191   +2.298    +90.0%  VERIFIED      REAL          TN  (ok)
-  surfboard      surfboard     0.378   10/576   -0.982   -1.025   +0.042     +4.1%  HALLUCINATED  REAL          FP  (false flag)
+  person         man           0.878   38/576   -1.893   -3.704   +1.811    +83.7%  VERIFIED      REAL          TN  (ok)
+  surfboard      surfboard     0.378    9/576   -0.982   -1.018   +0.036     +3.5%  HALLUCINATED  REAL          FP  (false flag)
+  bridge         bridge        0.728  144/576   -4.776  -13.207   +8.431   +100.0%  VERIFIED      UNKNOWN       TN  (ok)
+  water          water         0.681  444/576   -4.854   -7.108   +2.254    +89.5%  VERIFIED      UNKNOWN       TN  (ok)
+  wave           wave          0.403  202/576   -5.127   -7.991   +2.863    +94.3%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 27/50] COCO_val2014_000000161227.jpg   (image_id=161227)
   caption : In the image, there is a couch with a pillow on it, a laptop computer, a remote control, and a cell phone. The couch is positioned in front of a window.
   GT COCO : cell phone, chair, couch, keyboard, laptop, remote
   probes  : K=20  (GT-present probes: 0 = 0.0%  [tau_low relaxed])
-  null    : mu_hat=-0.8552  sigma_hat=1.0525  -> tau(kappa=1.0) = +0.1972
+  null    : mu_hat=-0.2419  sigma_hat=0.5799  -> tau(kappa=1.0) = +0.3380
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  couch          couch         0.910  504/576   -0.480   -3.021   +2.541    +92.1%  VERIFIED      REAL          TN  (ok)
-  laptop         laptop compu  0.533   56/576   -4.175   -8.859   +4.684    +99.1%  VERIFIED      REAL          TN  (ok)
-  remote         remote        0.343  504/576   -3.535   -8.357   +4.822    +99.2%  VERIFIED      REAL          TN  (ok)
-  cell phone     cell phone    0.239   48/576   -4.103   -4.850   +0.747    +52.6%  VERIFIED      REAL          TN  (ok)
+  couch          couch         0.910  265/576   -0.480   -0.527   +0.046     +4.5%  HALLUCINATED  REAL          FP  (false flag)
+  laptop         laptop compu  0.533   33/576   -4.175   -8.974   +4.799    +99.2%  VERIFIED      REAL          TN  (ok)
+  remote         remote        0.343  263/576   -3.535   -9.065   +5.530    +99.6%  VERIFIED      REAL          TN  (ok)
+  cell phone     cell phone    0.239   33/576   -4.103   -4.905   +0.802    +55.2%  VERIFIED      REAL          TN  (ok)
+  computer       computer      0.484   33/576   -5.761   -8.849   +3.088    +95.4%  VERIFIED      UNKNOWN       TN  (ok)
+  control        control       0.405  262/576   -8.441  -10.272   +1.831    +84.0%  VERIFIED      UNKNOWN       TN  (ok)
+  pillow         pillow        0.613  122/576   -3.297   -4.875   +1.578    +79.4%  VERIFIED      UNKNOWN       TN  (ok)
+  window         window        0.333    3/576  -10.566  -10.445   -0.121    -12.8%  HALLUCINATED  UNKNOWN       TN  (ok)
+  phone          phone         0.325  252/576   -9.824  -10.014   +0.190    +17.3%  HALLUCINATED  UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 28/50] COCO_val2014_000000025812.jpg   (image_id=25812)
   caption : In the image, there is a person skiing down a snow-covered slope, surrounded by trees. The skier is wearing a white jacket and is skiing on a snowy hill. The scene also features a ski lift, which is likely used to transport skiers up the mountain. The presence
   GT COCO : person, skis, snowboard
   probes  : K=20  (GT-present probes: 0 = 0.0%)
-  null    : mu_hat=-0.1259  sigma_hat=0.4264  -> tau(kappa=1.0) = +0.3005
+  null    : mu_hat=-0.1555  sigma_hat=0.4390  -> tau(kappa=1.0) = +0.2835
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  person         person        0.826   16/576   -1.768   -7.449   +5.681    +99.7%  VERIFIED      REAL          TN  (ok)
-  skis           ski           0.479   16/576   -4.591   -4.863   +0.272    +23.8%  HALLUCINATED  REAL          FP  (false flag)
+  person         person        0.826   10/576   -1.768   -7.382   +5.613    +99.6%  VERIFIED      REAL          TN  (ok)
+  skis           ski           0.479   11/576   -4.591   -4.855   +0.264    +23.2%  HALLUCINATED  REAL          FP  (false flag)
+  mountain       mountain      0.295  566/576   -3.667   -8.253   +4.586    +99.0%  VERIFIED      UNKNOWN       TN  (ok)
+  ski lift       ski lift      0.277   66/576   -1.586   -4.371   +2.785    +93.8%  VERIFIED      UNKNOWN       TN  (ok)
+  jacket         jacket        0.464   10/576   -5.608   -6.028   +0.420    +34.3%  VERIFIED      UNKNOWN       TN  (ok)
+  skier          skier         0.914   10/576   -1.294   -3.548   +2.254    +89.5%  VERIFIED      UNKNOWN       TN  (ok)
+  slope          slope         0.394  173/576   -5.050   -7.089   +2.039    +87.0%  VERIFIED      UNKNOWN       TN  (ok)
+  snowy          snowy         0.340  566/576   -0.891   -3.830   +2.939    +94.7%  VERIFIED      UNKNOWN       TN  (ok)
+  white          white         0.344  173/576   -7.222   -7.370   +0.148    +13.8%  HALLUCINATED  UNKNOWN       TN  (ok)
+  hill           hill          0.320  173/576   -4.683   -5.097   +0.414    +33.9%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 29/50] COCO_val2014_000000267537.jpg   (image_id=267537)
   caption : In the image, there are several people sitting on a bench, and they are holding umbrellas. The umbrellas are of various sizes and are being used to shield the people from the rain. The people are sitting close to each other, creating a sense of togetherness and camar
   GT COCO : bench, person, tie, umbrella
   probes  : K=20  (GT-present probes: 0 = 0.0%)
-  null    : mu_hat=-0.1222  sigma_hat=0.5921  -> tau(kappa=1.0) = +0.4699
+  null    : mu_hat=+0.0259  sigma_hat=0.2007  -> tau(kappa=1.0) = +0.2266
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  person         person        0.586  369/576   -6.765   -2.616   -4.149  -6239.6%  HALLUCINATED  REAL          FP  (false flag)
-  bench          bench         0.283  576/576   -2.023   -4.613   +2.590    +92.5%  VERIFIED      REAL          TN  (ok)
-  umbrella       umbrella      0.516  106/576   -4.121   -4.353   +0.232    +20.7%  HALLUCINATED  REAL          FP  (false flag)
+  person         person        0.586  267/576   -6.765   -2.081   -4.684 -10723.2%  HALLUCINATED  REAL          FP  (false flag)
+  bench          bench         0.283  278/576   -2.023   -2.921   +0.897    +59.2%  VERIFIED      REAL          TN  (ok)
+  umbrella       umbrella      0.516   60/576   -4.121   -4.903   +0.782    +54.2%  VERIFIED      REAL          TN  (ok)
+  rain           rain          0.311  288/576  -10.796  -10.795   -0.002     -0.2%  HALLUCINATED  UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 30/50] COCO_val2014_000000195645.jpg   (image_id=195645)
   caption : In the image, there are several objects visible. These include a group of people, a bench, a dining table, a wine glass, a handbag, a backpack, and a bottle. The people are gathered around the dining table, enjoying each other's company and possibly having a
   GT COCO : bench, bottle, dining table, handbag, person, wine glass
   probes  : K=20  (GT-present probes: 0 = 0.0%)
-  null    : mu_hat=-0.1511  sigma_hat=0.2460  -> tau(kappa=1.0) = +0.0949
+  null    : mu_hat=-0.2124  sigma_hat=0.3805  -> tau(kappa=1.0) = +0.1682
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  person         person        0.529  459/576   -5.873   -6.082   +0.209    +18.9%  VERIFIED      REAL          TN  (ok)
-  bench          bench         0.298  117/576   -1.624   -4.050   +2.426    +91.2%  VERIFIED      REAL          TN  (ok)
-  dining table   table         0.419   20/576   -1.077   -1.055   -0.023     -2.3%  HALLUCINATED  REAL          FP  (false flag)
-  handbag        handbag       0.417   16/576   -4.498   -4.901   +0.403    +33.2%  VERIFIED      REAL          TN  (ok)
-  backpack       backpack      0.291  198/576   -4.412   -4.684   +0.272    +23.8%  VERIFIED      HALLUCINATED  FN  (missed)
-  bottle         bottle        0.218   48/576   -3.991   -3.629   -0.362    -43.7%  HALLUCINATED  REAL          FP  (false flag)
+  person         person        0.529  360/576   -5.873   -4.186   -1.687   -440.5%  HALLUCINATED  REAL          FP  (false flag)
+  bench          bench         0.298   52/576   -1.624   -4.435   +2.811    +94.0%  VERIFIED      REAL          TN  (ok)
+  dining table   table         0.419    6/576   -1.077   -1.071   -0.007     -0.7%  HALLUCINATED  REAL          FP  (false flag)
+  handbag        handbag       0.417   11/576   -4.498   -4.775   +0.277    +24.2%  VERIFIED      REAL          TN  (ok)
+  backpack       backpack      0.291  129/576   -4.412   -4.396   -0.016     -1.6%  HALLUCINATED  HALLUCINATED  TP  (caught)
+  bottle         bottle        0.218   35/576   -3.991   -3.670   -0.322    -37.9%  HALLUCINATED  REAL          FP  (false flag)
+  wine glass     wine glass    0.489   16/576   -3.193   -4.503   +1.310    +73.0%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 31/50] COCO_val2014_000000155671.jpg   (image_id=155671)
   caption : In the image, there are several objects visible, including a traffic light, a street sign, a fire hydrant, a truck, cars, and a building. The traffic light is hanging above the street, and the street sign is located near the fire hydrant. The fire hydrant is situated on the
   GT COCO : car, traffic light, truck
   probes  : K=20  (GT-present probes: 0 = 0.0%)
-  null    : mu_hat=-0.0992  sigma_hat=0.2124  -> tau(kappa=1.0) = +0.1132
+  null    : mu_hat=-0.0820  sigma_hat=0.2006  -> tau(kappa=1.0) = +0.1186
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  traffic light  traffic ligh  0.442   13/576   -0.958   -2.798   +1.840    +84.1%  VERIFIED      REAL          TN  (ok)
+  traffic light  traffic ligh  0.442   11/576   -0.958   -2.753   +1.795    +83.4%  VERIFIED      REAL          TN  (ok)
   fire hydrant   fire hydrant  0.338    4/576   -2.355   -2.381   +0.027     +2.6%  HALLUCINATED  HALLUCINATED  TP  (caught)
-  truck          truck         0.569   21/576   -4.749   -4.891   +0.143    +13.3%  VERIFIED      REAL          TN  (ok)
-  car            car           0.534   34/576   -5.684   -6.019   +0.336    +28.5%  VERIFIED      REAL          TN  (ok)
+  truck          truck         0.569   19/576   -4.749   -4.943   +0.195    +17.7%  VERIFIED      REAL          TN  (ok)
+  car            car           0.534   26/576   -5.684   -6.120   +0.436    +35.3%  VERIFIED      REAL          TN  (ok)
+  street sign    street sign   0.327   14/576   -2.594   -2.486   -0.109    -11.5%  HALLUCINATED  UNKNOWN       TN  (ok)
+  building       building      0.421  100/576   -7.332   -7.921   +0.589    +44.5%  VERIFIED      UNKNOWN       TN  (ok)
+  hydrant        hydrant       0.313    3/576   -5.824   -5.859   +0.034     +3.4%  HALLUCINATED  UNKNOWN       TN  (ok)
+  traffic        traffic       0.307   19/576   -1.730   -1.651   -0.079     -8.2%  HALLUCINATED  UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 32/50] COCO_val2014_000000412894.jpg   (image_id=412894)
   caption : In the image, there are several objects visible, including a traffic light, a street sign, a building, a clock, and a group of people walking on the sidewalk.
   GT COCO : backpack, handbag, person, traffic light
   probes  : K=20  (GT-present probes: 0 = 0.0%)
-  null    : mu_hat=-0.2202  sigma_hat=0.4339  -> tau(kappa=1.0) = +0.2137
+  null    : mu_hat=-0.1984  sigma_hat=0.3891  -> tau(kappa=1.0) = +0.1907
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  traffic light  traffic ligh  0.774   32/576   -0.870   -1.942   +1.071    +65.8%  VERIFIED      REAL          TN  (ok)
-  clock          clock         0.215   32/576   -5.469   -4.923   -0.545    -72.5%  HALLUCINATED  HALLUCINATED  TP  (caught)
-  person         person        0.566   54/576   -6.172   -6.342   +0.170    +15.6%  HALLUCINATED  REAL          FP  (false flag)
+  traffic light  traffic ligh  0.774   26/576   -0.870   -1.890   +1.020    +63.9%  VERIFIED      REAL          TN  (ok)
+  clock          clock         0.215   26/576   -5.469   -4.835   -0.634    -88.5%  HALLUCINATED  HALLUCINATED  TP  (caught)
+  person         person        0.566   44/576   -6.172   -6.458   +0.286    +24.9%  VERIFIED      REAL          TN  (ok)
+  street sign    street sign   0.416   70/576   -2.498   -3.343   +0.845    +57.1%  VERIFIED      UNKNOWN       TN  (ok)
+  building       building      0.416  431/576   -4.656   -7.129   +2.473    +91.6%  VERIFIED      UNKNOWN       TN  (ok)
+  traffic        traffic       0.330   26/576   -1.609   -3.577   +1.968    +86.0%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 33/50] COCO_val2014_000000032625.jpg   (image_id=32625)
   caption : In the image, there is a table with a glass of soda, a bowl of soup, a fork, and a spoon on it. The table is surrounded by a few books, and there is a cup nearby. The scene appears to be set in a restaurant or a dining area.
   GT COCO : book, bowl, cup, dining table, fork
   probes  : K=20  (GT-present probes: 0 = 0.0%)
-  null    : mu_hat=-0.1575  sigma_hat=0.3564  -> tau(kappa=1.0) = +0.1989
+  null    : mu_hat=-0.1845  sigma_hat=0.3948  -> tau(kappa=1.0) = +0.2103
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  dining table   table         0.735  432/576   -0.691   -3.459   +2.768    +93.7%  VERIFIED      REAL          TN  (ok)
-  bowl           bowl          0.704   63/576   -1.687   -3.441   +1.754    +82.7%  VERIFIED      REAL          TN  (ok)
-  fork           fork          0.588   55/576   -4.030   -6.871   +2.841    +94.2%  VERIFIED      REAL          TN  (ok)
-  spoon          spoon         0.434   44/576   -3.283   -3.799   +0.516    +40.3%  VERIFIED      HALLUCINATED  FN  (missed)
-  book           book          0.315   79/576   -8.030  -11.708   +3.678    +97.5%  VERIFIED      REAL          TN  (ok)
-  cup            cup           0.577   50/576   -3.873   -4.717   +0.844    +57.0%  VERIFIED      REAL          TN  (ok)
+  dining table   table         0.735  311/576   -0.691   -0.744   +0.053     +5.2%  HALLUCINATED  REAL          FP  (false flag)
+  bowl           bowl          0.704   49/576   -1.687   -3.797   +2.111    +87.9%  VERIFIED      REAL          TN  (ok)
+  fork           fork          0.588   18/576   -4.030   -7.267   +3.237    +96.1%  VERIFIED      REAL          TN  (ok)
+  spoon          spoon         0.434   18/576   -3.283   -3.839   +0.556    +42.6%  VERIFIED      HALLUCINATED  FN  (missed)
+  book           book          0.315   63/576   -8.030  -10.368   +2.339    +90.4%  VERIFIED      REAL          TN  (ok)
+  cup            cup           0.577   45/576   -3.873   -4.285   +0.412    +33.8%  VERIFIED      REAL          TN  (ok)
+  restaurant     restaurant    0.595  393/576   -6.936   -6.798   -0.138    -14.8%  HALLUCINATED  UNKNOWN       TN  (ok)
+  soda           soda          0.689   45/576   -3.789   -5.854   +2.064    +87.3%  VERIFIED      UNKNOWN       TN  (ok)
+  soup           soup          0.477   98/576   -6.811   -9.129   +2.319    +90.2%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 34/50] COCO_val2014_000000018688.jpg   (image_id=18688)
   caption : In the image, there are several objects visible, including a baseball player holding a bat, a catcher, and an umpire. The scene takes place on a baseball field, with a crowd of people watching the game. The baseball player is standing at home plate, ready to swing at the incoming pitch. The
   GT COCO : baseball bat, baseball glove, person, sports ball
   probes  : K=20  (GT-present probes: 1 = 5.0%)
-  null    : mu_hat=-0.2751  sigma_hat=0.3518  -> tau(kappa=1.0) = +0.0767
+  null    : mu_hat=-0.2071  sigma_hat=0.2764  -> tau(kappa=1.0) = +0.0692
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  person         player        0.666  266/576   -5.126   -8.376   +3.250    +96.1%  VERIFIED      REAL          TN  (ok)
+  person         player        0.666  237/576   -5.126   -7.833   +2.708    +93.3%  VERIFIED      REAL          TN  (ok)
+  baseball playe baseball pla  0.619   36/576   -1.076   -0.952   -0.124    -13.2%  HALLUCINATED  UNKNOWN       TN  (ok)
+  catcher        catcher       0.942   23/576   -3.552   -3.493   -0.059     -6.1%  HALLUCINATED  UNKNOWN       TN  (ok)
+  crowd          crowd         0.590  153/576   -6.305   -7.849   +1.543    +78.6%  VERIFIED      UNKNOWN       TN  (ok)
+  field          field         0.508  278/576   -4.657   -4.825   +0.168    +15.5%  VERIFIED      UNKNOWN       TN  (ok)
+  pitch          pitch         0.354   36/576   -3.837   -3.870   +0.033     +3.2%  HALLUCINATED  UNKNOWN       TN  (ok)
+  plate          plate         0.075   36/576   -9.649   -9.417   -0.233    -26.2%  HALLUCINATED  UNKNOWN       TN  (ok)
+  swing          swing         0.043   23/576  -11.118  -11.443   +0.325    +27.7%  VERIFIED      UNKNOWN       TN  (ok)
+  game           game          0.294  490/576   -6.743   -8.366   +1.623    +80.3%  VERIFIED      UNKNOWN       TN  (ok)
+  bat            bat           0.232   20/576   -7.923  -10.071   +2.148    +88.3%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 35/50] COCO_val2014_000000343534.jpg   (image_id=343534)
   caption : In the image, there is a doll, a teddy bear, and a chair. The doll is wearing a pink sweater and a black skirt, and it is holding the teddy bear. The teddy bear is positioned next to the doll, and the chair is located behind them.
   GT COCO : book, chair, dog, potted plant, teddy bear
   probes  : K=20  (GT-present probes: 0 = 0.0%  [tau_low relaxed])
-  null    : mu_hat=-0.3277  sigma_hat=0.8794  -> tau(kappa=1.0) = +0.5517
+  null    : mu_hat=-0.4408  sigma_hat=0.8869  -> tau(kappa=1.0) = +0.4461
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  teddy bear     teddy bear    0.758  140/576   -1.442   -1.768   +0.326    +27.8%  HALLUCINATED  REAL          FP  (false flag)
-  chair          chair         0.775  120/576   -7.728   -9.981   +2.253    +89.5%  VERIFIED      REAL          TN  (ok)
+  teddy bear     teddy bear    0.758  107/576   -1.442   -1.794   +0.353    +29.7%  HALLUCINATED  REAL          FP  (false flag)
+  chair          chair         0.775   47/576   -7.728   -8.796   +1.068    +65.6%  VERIFIED      REAL          TN  (ok)
+  sweater        sweater       0.634  176/576   -5.392   -6.157   +0.765    +53.5%  VERIFIED      UNKNOWN       TN  (ok)
+  black          black         0.718  176/576   -8.009   -6.518   -1.491   -344.1%  HALLUCINATED  UNKNOWN       TN  (ok)
+  teddy          teddy         0.593  107/576   -2.161   -2.677   +0.516    +40.3%  VERIFIED      UNKNOWN       TN  (ok)
+  bear           bear          0.395  273/576   -8.689   -9.440   +0.751    +52.8%  VERIFIED      UNKNOWN       TN  (ok)
+  doll           doll          0.926  176/576   -0.509   -2.401   +1.892    +84.9%  VERIFIED      UNKNOWN       TN  (ok)
+  pink           pink          0.782  176/576   -2.669   -3.139   +0.470    +37.5%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 36/50] COCO_val2014_000000370657.jpg   (image_id=370657)
   caption : In the image, there are several people riding motorcycles, including a man, a woman, and a child. The man is wearing a helmet, and the woman is also wearing a helmet. The child is sitting on the motorcycle with the man and the woman. There are also other
   GT COCO : handbag, motorcycle, person
   probes  : K=20  (GT-present probes: 0 = 0.0%  [tau_low relaxed])
-  null    : mu_hat=-0.3398  sigma_hat=0.7261  -> tau(kappa=1.0) = +0.3863
+  null    : mu_hat=-0.1249  sigma_hat=0.2650  -> tau(kappa=1.0) = +0.1400
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  person         person        0.567  413/576   -4.186   -7.189   +3.004    +95.0%  VERIFIED      REAL          TN  (ok)
-  motorcycle     motorcycle    0.642  344/576   -0.497   -2.002   +1.504    +77.8%  VERIFIED      REAL          TN  (ok)
+  person         person        0.567  272/576   -4.186   -6.714   +2.529    +92.0%  VERIFIED      REAL          TN  (ok)
+  motorcycle     motorcycle    0.642  135/576   -0.497   -0.587   +0.089     +8.5%  HALLUCINATED  REAL          FP  (false flag)
+  helmet         helmet        0.418   57/576   -3.485   -3.838   +0.353    +29.7%  VERIFIED      UNKNOWN       TN  (ok)
+  child          child         0.498   28/576   -7.607  -10.615   +3.008    +95.1%  VERIFIED      UNKNOWN       TN  (ok)
+  woman          woman         0.730   36/576   -5.006   -4.917   -0.089     -9.3%  HALLUCINATED  UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 37/50] COCO_val2014_000000481596.jpg   (image_id=481596)
   caption : In the image, there are several objects visible. A man is sitting in the stands at a baseball game, holding a hot dog in his hand. There are multiple chairs in the scene, some of which are occupied by other people. A baseball bat can be seen in the background, and a cup is also present
   GT COCO : chair, hot dog, person
   probes  : K=20  (GT-present probes: 0 = 0.0%)
-  null    : mu_hat=-0.1607  sigma_hat=0.4613  -> tau(kappa=1.0) = +0.3005
+  null    : mu_hat=+0.0309  sigma_hat=0.5342  -> tau(kappa=1.0) = +0.5651
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  person         man           0.545  506/576   -2.711   -4.038   +1.327    +73.5%  VERIFIED      REAL          TN  (ok)
-  hot dog        hot dog       0.551   15/576   -2.243   -5.171   +2.928    +94.6%  VERIFIED      REAL          TN  (ok)
-  chair          chair         0.308   68/576   -7.359   -7.680   +0.321    +27.4%  VERIFIED      REAL          TN  (ok)
-  baseball bat   baseball bat  0.131    3/576   -3.783   -3.827   +0.043     +4.2%  HALLUCINATED  HALLUCINATED  TP  (caught)
-  cup            cup           0.377   17/576   -9.297   -9.210   -0.087     -9.1%  HALLUCINATED  HALLUCINATED  TP  (caught)
+  person         man           0.545  309/576   -2.711   -5.604   +2.893    +94.5%  VERIFIED      REAL          TN  (ok)
+  hot dog        hot dog       0.551   11/576   -2.243   -5.215   +2.972    +94.9%  VERIFIED      REAL          TN  (ok)
+  chair          chair         0.308   40/576   -7.359   -7.954   +0.595    +44.8%  VERIFIED      REAL          TN  (ok)
+  baseball bat   baseball bat  0.131    2/576   -3.783   -3.758   -0.025     -2.5%  HALLUCINATED  HALLUCINATED  TP  (caught)
+  cup            cup           0.377   10/576   -9.297   -9.172   -0.125    -13.3%  HALLUCINATED  HALLUCINATED  TP  (caught)
+  baseball game  baseball gam  0.458  294/576   -1.318   -1.346   +0.028     +2.8%  HALLUCINATED  UNKNOWN       TN  (ok)
+  hand           hand          0.445  286/576   -7.523   -8.733   +1.210    +70.2%  VERIFIED      UNKNOWN       TN  (ok)
+  bat            bat           0.066  279/576  -10.023   -9.415   -0.608    -83.7%  HALLUCINATED  UNKNOWN       TN  (ok)
+  can            can           0.118  279/576  -11.468  -10.329   -1.139   -212.4%  HALLUCINATED  UNKNOWN       TN  (ok)
+  dog            dog           0.184   11/576   -9.148  -10.722   +1.574    +79.3%  VERIFIED      UNKNOWN       TN  (ok)
+  hot            hot           0.212  279/576   -4.390   -9.298   +4.908    +99.3%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 38/50] COCO_val2014_000000460347.jpg   (image_id=460347)
   caption : In the image, there is a white bus driving down a highway, surrounded by other vehicles. There are two cars visible in the scene, one behind the bus and another further ahead. Additionally, there is a truck on the right side of the highway. The bus is the main focus of the image, as it
   GT COCO : bus, car, person
   probes  : K=20  (GT-present probes: 0 = 0.0%  [tau_low relaxed])
-  null    : mu_hat=-0.8028  sigma_hat=0.7705  -> tau(kappa=1.0) = -0.0323
+  null    : mu_hat=-0.7379  sigma_hat=0.8039  -> tau(kappa=1.0) = +0.0661
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
   car            car           0.493   60/576   -6.483   -4.503   -1.980   -624.2%  HALLUCINATED  REAL          FP  (false flag)
   truck          truck         0.405   56/576   -4.701   -3.417   -1.284   -261.1%  HALLUCINATED  HALLUCINATED  TP  (caught)
+  highway        highway       0.485  541/576   -4.835   -8.852   +4.017    +98.2%  VERIFIED      UNKNOWN       TN  (ok)
+  white          white         0.904   56/576   -1.827   -3.778   +1.951    +85.8%  VERIFIED      UNKNOWN       TN  (ok)
+  bus            bus           0.803   56/576   -1.155   -7.044   +5.889    +99.7%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 39/50] COCO_val2014_000000398753.jpg   (image_id=398753)
   caption : In the image, there are several objects visible, including a baseball field with a baseball game in progress, a baseball player holding a bat, a baseball glove, a sports ball, and a crowd of people watching the game. The field is surrounded by a blue fence, and there are multiple benches and ch
   GT COCO : baseball bat, baseball glove, person, sports ball
   probes  : K=20  (GT-present probes: 0 = 0.0%)
-  null    : mu_hat=-0.0007  sigma_hat=0.0836  -> tau(kappa=1.0) = +0.0828
+  null    : mu_hat=+0.0101  sigma_hat=0.0616  -> tau(kappa=1.0) = +0.0717
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  person         player        0.588   29/576   -5.593   -7.238   +1.645    +80.7%  VERIFIED      REAL          TN  (ok)
+  person         player        0.588   23/576   -5.593   -7.728   +2.136    +88.2%  VERIFIED      REAL          TN  (ok)
   baseball glove baseball glo  0.362    2/576   -2.794   -2.776   -0.019     -1.9%  HALLUCINATED  REAL          FP  (false flag)
   sports ball    ball          0.254    0/576   -3.181   -3.181   +0.000     +0.0%  HALLUCINATED  REAL          FP  (false flag)
   bench          bench         0.280   12/576   -4.481   -4.415   -0.066     -6.9%  HALLUCINATED  HALLUCINATED  TP  (caught)
+  baseball playe baseball pla  0.418   12/576   -1.765   -1.529   -0.236    -26.6%  HALLUCINATED  UNKNOWN       TN  (ok)
+  baseball game  baseball gam  0.390  199/576   -0.726   -1.571   +0.845    +57.0%  VERIFIED      UNKNOWN       TN  (ok)
+  crowd          crowd         0.363   37/576   -6.218   -6.472   +0.254    +22.5%  VERIFIED      UNKNOWN       TN  (ok)
+  fence          fence         0.219   23/576   -5.516   -5.208   -0.308    -36.0%  HALLUCINATED  UNKNOWN       TN  (ok)
+  field          field         0.599  193/576   -4.186   -2.981   -1.205   -233.7%  HALLUCINATED  UNKNOWN       TN  (ok)
+  glove          glove         0.202    0/576   -5.304   -5.304   +0.000     +0.0%  HALLUCINATED  UNKNOWN       TN  (ok)
+  blue           blue          0.273    6/576   -8.014   -7.651   -0.363    -43.8%  HALLUCINATED  UNKNOWN       TN  (ok)
+  bat            bat           0.245    6/576   -8.764   -8.802   +0.038     +3.7%  HALLUCINATED  UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 40/50] COCO_val2014_000000067833.jpg   (image_id=67833)
   caption : In the image, there is a large pizza with various toppings, including green vegetables, placed on a dining table. The pizza is accompanied by a bowl of bread, a bowl of sauce, and a plate of olives. There are also two people in the scene, one on
   GT COCO : bottle, bowl, cup, dining table, fork, knife, person, pizza, wine glass
   probes  : K=20  (GT-present probes: 0 = 0.0%)
-  null    : mu_hat=-0.3787  sigma_hat=0.2857  -> tau(kappa=1.0) = -0.0930
+  null    : mu_hat=-0.3475  sigma_hat=0.2730  -> tau(kappa=1.0) = -0.0744
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  pizza          pizza         0.607  441/576   -0.768   -3.574   +2.806    +94.0%  VERIFIED      REAL          TN  (ok)
-  dining table   table         0.802  552/576   -1.096   -1.516   +0.420    +34.3%  VERIFIED      REAL          TN  (ok)
-  bowl           bowl          0.373  130/576   -3.954   -4.757   +0.804    +55.2%  VERIFIED      REAL          TN  (ok)
-  person         person        0.533   60/576   -8.032   -8.855   +0.823    +56.1%  VERIFIED      REAL          TN  (ok)
+  pizza          pizza         0.607  393/576   -0.768   -3.167   +2.399    +90.9%  VERIFIED      REAL          TN  (ok)
+  dining table   table         0.801  112/576   -1.096   -1.203   +0.107    +10.1%  VERIFIED      REAL          TN  (ok)
+  bowl           bowl          0.373  104/576   -3.954   -4.832   +0.879    +58.5%  VERIFIED      REAL          TN  (ok)
+  person         person        0.533   45/576   -8.032   -8.680   +0.648    +47.7%  VERIFIED      REAL          TN  (ok)
+  bread          bread         0.409  353/576   -9.954   -9.815   -0.139    -14.9%  HALLUCINATED  UNKNOWN       TN  (ok)
+  green          green         0.615  327/576   -8.719   -8.920   +0.200    +18.2%  VERIFIED      UNKNOWN       TN  (ok)
+  plate          plate         0.417   42/576   -5.024   -5.118   +0.094     +9.0%  VERIFIED      UNKNOWN       TN  (ok)
+  sauce          sauce         0.653  327/576   -5.414   -5.147   -0.268    -30.7%  HALLUCINATED  UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 41/50] COCO_val2014_000000272880.jpg   (image_id=272880)
   caption : In the image, there is a pizza on a plate, a fork, a knife, a cup, and a person's hand holding a piece of pizza.
   GT COCO : cup, dining table, fork, knife, person, pizza
   probes  : K=20  (GT-present probes: 0 = 0.0%)
-  null    : mu_hat=-0.3288  sigma_hat=0.9872  -> tau(kappa=1.0) = +0.6584
+  null    : mu_hat=-0.0898  sigma_hat=0.5321  -> tau(kappa=1.0) = +0.4423
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  pizza          pizza         0.422  332/576   -0.649   -2.285   +1.636    +80.5%  VERIFIED      REAL          TN  (ok)
-  fork           fork          0.598   35/576   -4.614   -6.379   +1.765    +82.9%  VERIFIED      REAL          TN  (ok)
-  knife          knife         0.415   36/576   -4.353   -4.451   +0.098     +9.3%  HALLUCINATED  REAL          FP  (false flag)
-  cup            cup           0.498   48/576   -8.450   -9.804   +1.354    +74.2%  VERIFIED      REAL          TN  (ok)
-  person         person        0.535   45/576   -2.693   -8.999   +6.306    +99.8%  VERIFIED      REAL          TN  (ok)
+  pizza          pizza         0.422  127/576   -0.649   -0.665   +0.015     +1.5%  HALLUCINATED  REAL          FP  (false flag)
+  fork           fork          0.598   24/576   -4.614   -6.403   +1.788    +83.3%  VERIFIED      REAL          TN  (ok)
+  knife          knife         0.415   21/576   -4.353   -4.477   +0.124    +11.7%  HALLUCINATED  REAL          FP  (false flag)
+  cup            cup           0.498   34/576   -8.450   -9.764   +1.313    +73.1%  VERIFIED      REAL          TN  (ok)
+  person         person        0.535   36/576   -2.693   -9.184   +6.491    +99.8%  VERIFIED      REAL          TN  (ok)
+  plate          plate         0.676  287/576   -2.372   -3.886   +1.514    +78.0%  VERIFIED      UNKNOWN       TN  (ok)
+  hand           hand          0.805   36/576   -5.052  -10.012   +4.960    +99.3%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 42/50] COCO_val2014_000000254368.jpg   (image_id=254368)
   caption : In the image, there is a man lying on a bed, holding a bowl of food in his hand. The bowl contains a sandwich, and the man is eating it while lying down.
   GT COCO : bed, person, pizza
   probes  : K=20  (GT-present probes: 0 = 0.0%  [tau_low relaxed])
-  null    : mu_hat=-0.5473  sigma_hat=1.0379  -> tau(kappa=1.0) = +0.4906
+  null    : mu_hat=-0.3587  sigma_hat=0.7411  -> tau(kappa=1.0) = +0.3824
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  person         man           0.429  528/576   -1.509   -3.590   +2.082    +87.5%  VERIFIED      REAL          TN  (ok)
-  bed            bed           0.658  576/576   -2.462   -9.594   +7.132    +99.9%  VERIFIED      REAL          TN  (ok)
-  bowl           bowl          0.438   48/576   -1.512   -5.398   +3.886    +97.9%  VERIFIED      HALLUCINATED  FN  (missed)
-  sandwich       sandwich      0.316   30/576   -4.760   -5.294   +0.534    +41.4%  VERIFIED      HALLUCINATED  FN  (missed)
+  person         man           0.429  362/576   -1.509   -6.685   +5.176    +99.4%  VERIFIED      REAL          TN  (ok)
+  bed            bed           0.658  220/576   -2.462   -4.584   +2.122    +88.0%  VERIFIED      REAL          TN  (ok)
+  bowl           bowl          0.438   34/576   -1.512   -5.223   +3.711    +97.6%  VERIFIED      HALLUCINATED  FN  (missed)
+  sandwich       sandwich      0.316   17/576   -4.760   -5.437   +0.677    +49.2%  VERIFIED      HALLUCINATED  FN  (missed)
+  food           food          0.426   51/576   -7.970  -13.105   +5.135    +99.4%  VERIFIED      UNKNOWN       TN  (ok)
+  hand           hand          0.370  377/576   -7.837   -8.106   +0.269    +23.6%  HALLUCINATED  UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 43/50] COCO_val2014_000000193108.jpg   (image_id=193108)
   caption : In the image, there are several objects visible. A baseball player is holding a baseball bat, and a baseball glove is also present. There are two baseball players in the scene, one of them wearing a baseball glove. Additionally, there is a baseball on the ground, and a sports ball can be seen
   GT COCO : baseball bat, person, sports ball
   probes  : K=20  (GT-present probes: 0 = 0.0%)
-  null    : mu_hat=-0.4377  sigma_hat=0.6241  -> tau(kappa=1.0) = +0.1864
+  null    : mu_hat=-0.1949  sigma_hat=0.5655  -> tau(kappa=1.0) = +0.3706
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  person         player        0.684  420/576   -4.318   -4.980   +0.662    +48.4%  VERIFIED      REAL          TN  (ok)
-  baseball bat   baseball bat  0.465   14/576   -0.649   -0.788   +0.139    +13.0%  HALLUCINATED  REAL          FP  (false flag)
-  baseball glove baseball glo  0.256   16/576   -1.860   -1.744   -0.116    -12.3%  HALLUCINATED  HALLUCINATED  TP  (caught)
-  sports ball    ball          0.129   16/576   -3.481   -3.435   -0.046     -4.7%  HALLUCINATED  REAL          FP  (false flag)
+  person         player        0.684  315/576   -4.318   -3.416   -0.902   -146.5%  HALLUCINATED  REAL          FP  (false flag)
+  baseball bat   baseball bat  0.465   13/576   -0.649   -0.773   +0.124    +11.6%  HALLUCINATED  REAL          FP  (false flag)
+  baseball glove baseball glo  0.256   12/576   -1.860   -1.739   -0.121    -12.9%  HALLUCINATED  HALLUCINATED  TP  (caught)
+  sports ball    ball          0.129   12/576   -3.481   -3.444   -0.036     -3.7%  HALLUCINATED  REAL          FP  (false flag)
+  baseball playe baseball pla  0.812  175/576   -0.376   -0.650   +0.275    +24.0%  HALLUCINATED  UNKNOWN       TN  (ok)
+  glove          glove         0.467   19/576   -4.690   -4.728   +0.037     +3.7%  HALLUCINATED  UNKNOWN       TN  (ok)
+  bat            bat           0.388  186/576   -4.740   -5.251   +0.511    +40.0%  VERIFIED      UNKNOWN       TN  (ok)
+  can            can           0.198  175/576  -13.611  -13.178   -0.433    -54.2%  HALLUCINATED  UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 44/50] COCO_val2014_000000459141.jpg   (image_id=459141)
   caption : In the image, there is a person wearing a straw hat and an orange jacket, riding a bicycle. The bicycle is carrying a basket, and the person is holding a bag. The scene also includes a potted plant, a bench, and a motorcycle parked nearby
   GT COCO : bicycle, motorcycle, person, potted plant
   probes  : K=20  (GT-present probes: 0 = 0.0%)
-  null    : mu_hat=-0.7646  sigma_hat=1.2398  -> tau(kappa=1.0) = +0.4752
+  null    : mu_hat=-0.5999  sigma_hat=0.7139  -> tau(kappa=1.0) = +0.1141
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  person         person        0.793  247/576   -1.012   -6.020   +5.008    +99.3%  VERIFIED      REAL          TN  (ok)
-  orange         orange        0.479  247/576  -12.902  -13.965   +1.063    +65.5%  VERIFIED      HALLUCINATED  FN  (missed)
-  bicycle        bicycle       0.819  312/576   -0.303   -2.134   +1.831    +84.0%  VERIFIED      REAL          TN  (ok)
-  potted plant   potted plant  0.571   22/576   -2.430   -3.685   +1.255    +71.5%  VERIFIED      REAL          TN  (ok)
-  bench          bench         0.206  336/576   -5.265   -1.798   -3.467  -3104.2%  HALLUCINATED  HALLUCINATED  TP  (caught)
-  motorcycle     motorcycle    0.700  312/576   -3.174   -4.028   +0.854    +57.4%  VERIFIED      REAL          TN  (ok)
+  person         person        0.793  151/576   -1.012   -5.604   +4.592    +99.0%  VERIFIED      REAL          TN  (ok)
+  orange         orange        0.479  151/576  -12.902  -13.416   +0.514    +40.2%  VERIFIED      HALLUCINATED  FN  (missed)
+  bicycle        bicycle       0.819  157/576   -0.303   -2.310   +2.007    +86.6%  VERIFIED      REAL          TN  (ok)
+  potted plant   potted plant  0.571   17/576   -2.430   -3.725   +1.295    +72.6%  VERIFIED      REAL          TN  (ok)
+  bench          bench         0.206  157/576   -5.265   -4.728   -0.537    -71.1%  HALLUCINATED  HALLUCINATED  TP  (caught)
+  motorcycle     motorcycle    0.700  157/576   -3.174   -4.644   +1.470    +77.0%  VERIFIED      REAL          TN  (ok)
+  straw hat      straw hat     0.505  151/576   -3.411   -5.619   +2.208    +89.0%  VERIFIED      UNKNOWN       TN  (ok)
+  basket         basket        0.621   23/576   -7.512   -7.678   +0.167    +15.3%  VERIFIED      UNKNOWN       TN  (ok)
+  jacket         jacket        0.397  151/576   -6.662   -6.459   -0.203    -22.5%  HALLUCINATED  UNKNOWN       TN  (ok)
+  plant          plant         0.375   30/576  -11.926  -13.343   +1.417    +75.8%  VERIFIED      UNKNOWN       TN  (ok)
+  bag            bag           0.398   32/576  -10.223  -12.754   +2.531    +92.0%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 45/50] COCO_val2014_000000231534.jpg   (image_id=231534)
   caption : In the image, there are several objects visible. A large airplane is parked on the runway, and a truck is nearby, possibly unloading luggage or cargo. There are also several suitcases and a backpack on the ground, likely waiting to be loaded onto the plane. Additionally, there
   GT COCO : airplane, handbag, person, suitcase, truck
   probes  : K=20  (GT-present probes: 0 = 0.0%  [tau_low relaxed])
-  null    : mu_hat=-0.1072  sigma_hat=0.5725  -> tau(kappa=1.0) = +0.4653
+  null    : mu_hat=-0.0466  sigma_hat=0.3787  -> tau(kappa=1.0) = +0.3321
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  airplane       airplane      0.841  308/576   -3.190   -4.667   +1.476    +77.1%  VERIFIED      REAL          TN  (ok)
-  truck          truck         0.592   87/576   -1.076   -2.668   +1.591    +79.6%  VERIFIED      REAL          TN  (ok)
-  suitcase       luggage       0.283   30/576   -2.999   -3.330   +0.331    +28.2%  HALLUCINATED  REAL          FP  (false flag)
-  backpack       backpack      0.277  308/576   -4.305   -3.692   -0.613    -84.6%  HALLUCINATED  HALLUCINATED  TP  (caught)
+  airplane       airplane      0.841   93/576   -3.190   -4.007   +0.817    +55.8%  VERIFIED      REAL          TN  (ok)
+  truck          truck         0.592   70/576   -1.076   -2.661   +1.585    +79.5%  VERIFIED      REAL          TN  (ok)
+  suitcase       luggage       0.283   25/576   -2.999   -3.310   +0.311    +26.7%  HALLUCINATED  REAL          FP  (false flag)
+  backpack       backpack      0.277   93/576   -4.305   -4.964   +0.658    +48.2%  VERIFIED      HALLUCINATED  FN  (missed)
+  cargo          cargo         0.398   53/576   -3.418   -4.899   +1.481    +77.3%  VERIFIED      UNKNOWN       TN  (ok)
+  plane          plane         0.848   93/576   -2.770   -3.702   +0.932    +60.6%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 46/50] COCO_val2014_000000227031.jpg   (image_id=227031)
   caption : In the image, there is a man and a woman standing next to a table with a cake on it. The cake is placed on a stand, and the couple is cutting it together. There are also several potted plants in the scene, with one near the couple and others scattered around the room. Additionally
   GT COCO : cake, dining table, knife, person, potted plant, tie
   probes  : K=20  (GT-present probes: 0 = 0.0%)
-  null    : mu_hat=-0.1527  sigma_hat=0.3249  -> tau(kappa=1.0) = +0.1722
+  null    : mu_hat=-0.1497  sigma_hat=0.2498  -> tau(kappa=1.0) = +0.1001
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  person         man           0.593  245/576   -4.894   -9.546   +4.652    +99.0%  VERIFIED      REAL          TN  (ok)
-  dining table   table         0.625  120/576   -1.172   -1.895   +0.722    +51.4%  VERIFIED      REAL          TN  (ok)
-  cake           cake          0.486   61/576   -0.811   -0.818   +0.007     +0.7%  HALLUCINATED  REAL          FP  (false flag)
-  potted plant   potted plant  0.521   12/576   -3.514   -4.097   +0.583    +44.2%  VERIFIED      REAL          TN  (ok)
+  person         man           0.593  195/576   -4.894   -6.085   +1.191    +69.6%  VERIFIED      REAL          TN  (ok)
+  dining table   table         0.625   81/576   -1.172   -1.770   +0.597    +45.0%  VERIFIED      REAL          TN  (ok)
+  cake           cake          0.486   38/576   -0.811   -0.794   -0.016     -1.7%  HALLUCINATED  REAL          FP  (false flag)
+  potted plant   potted plant  0.520    9/576   -3.514   -4.108   +0.594    +44.8%  VERIFIED      REAL          TN  (ok)
+  couple         couple        0.737  146/576   -3.011   -4.161   +1.150    +68.3%  VERIFIED      UNKNOWN       TN  (ok)
+  plant          plant         0.304   20/576  -11.480  -11.741   +0.261    +23.0%  VERIFIED      UNKNOWN       TN  (ok)
+  woman          woman         0.389   57/576   -4.878   -5.045   +0.166    +15.3%  VERIFIED      UNKNOWN       TN  (ok)
+  room           room          0.474  230/576   -8.628   -8.935   +0.306    +26.4%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 47/50] COCO_val2014_000000209347.jpg   (image_id=209347)
   caption : In the image, there are several objects visible. A woman is sitting on a train, looking at her cell phone. She is wearing a leather jacket and has earbuds in her ears. There are other people in the train as well, including a man sitting next to her and another person sitting further
   GT COCO : cell phone, handbag, person, tie, train
   probes  : K=20  (GT-present probes: 0 = 0.0%)
-  null    : mu_hat=-0.4427  sigma_hat=0.7604  -> tau(kappa=1.0) = +0.3178
+  null    : mu_hat=-0.0643  sigma_hat=0.3032  -> tau(kappa=1.0) = +0.2389
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  person         woman         0.573  429/576   -2.463   -6.370   +3.907    +98.0%  VERIFIED      REAL          TN  (ok)
-  train          train         0.573  576/576   -1.596   -9.321   +7.725   +100.0%  VERIFIED      REAL          TN  (ok)
-  cell phone     cell phone    0.297   10/576   -2.054   -2.886   +0.832    +56.5%  VERIFIED      REAL          TN  (ok)
+  person         woman         0.573  304/576   -2.463   -4.480   +2.017    +86.7%  VERIFIED      REAL          TN  (ok)
+  train          train         0.572  221/576   -1.596   -3.218   +1.623    +80.3%  VERIFIED      REAL          TN  (ok)
+  cell phone     cell phone    0.297    6/576   -2.054   -2.860   +0.805    +55.3%  VERIFIED      REAL          TN  (ok)
+  leather jacket leather jack  0.532  214/576   -1.405   -3.247   +1.842    +84.1%  VERIFIED      UNKNOWN       TN  (ok)
+  phone          phone         0.237    3/576   -7.041   -8.378   +1.337    +73.7%  VERIFIED      UNKNOWN       TN  (ok)
+  man            man           0.387   56/576   -4.182   -5.411   +1.230    +70.8%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 48/50] COCO_val2014_000000523292.jpg   (image_id=523292)
   caption : In the image, there is a cat sitting on a laptop computer, and a bottle is also visible in the scene.
   GT COCO : cat, chair, dining table, laptop, tv
   probes  : K=20  (GT-present probes: 0 = 0.0%  [tau_low relaxed])
-  null    : mu_hat=-0.3312  sigma_hat=0.3590  -> tau(kappa=1.0) = +0.0278
+  null    : mu_hat=-0.2353  sigma_hat=0.4144  -> tau(kappa=1.0) = +0.1791
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  cat            cat           0.835  352/576   -0.456  -10.216   +9.760   +100.0%  VERIFIED      REAL          TN  (ok)
-  laptop         laptop compu  0.689  238/576   -1.503  -10.181   +8.678   +100.0%  VERIFIED      REAL          TN  (ok)
-  bottle         bottle        0.268   12/576   -6.005   -6.218   +0.213    +19.2%  VERIFIED      HALLUCINATED  FN  (missed)
+  cat            cat           0.835  214/576   -0.456   -2.476   +2.020    +86.7%  VERIFIED      REAL          TN  (ok)
+  laptop         laptop compu  0.689  123/576   -1.503   -7.535   +6.032    +99.8%  VERIFIED      REAL          TN  (ok)
+  bottle         bottle        0.268   11/576   -6.005   -6.195   +0.189    +17.3%  VERIFIED      HALLUCINATED  FN  (missed)
+  computer       computer      0.687  117/576   -3.487   -7.218   +3.730    +97.6%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 49/50] COCO_val2014_000000012375.jpg   (image_id=12375)
   caption : In the image, there is a plate containing a variety of food items. The plate consists of meat, potatoes, carrots, and lettuce. The meat appears to be turkey, and the carrots are sliced. The plate is placed on a dining table, and the food items
   GT COCO : broccoli, carrot, dining table
   probes  : K=20  (GT-present probes: 0 = 0.0%)
-  null    : mu_hat=-1.6605  sigma_hat=1.0559  -> tau(kappa=1.0) = -0.6046
+  null    : mu_hat=-0.4201  sigma_hat=0.4101  -> tau(kappa=1.0) = -0.0100
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  carrot         carrot        0.391  144/576   -4.723   -5.841   +1.118    +67.3%  VERIFIED      REAL          TN  (ok)
-  bird           turkey        0.181  484/576   -8.875   -8.249   -0.626    -87.0%  HALLUCINATED  HALLUCINATED  TP  (caught)
-  dining table   table         0.724  576/576   -1.688   -2.768   +1.080    +66.0%  VERIFIED      REAL          TN  (ok)
+  carrot         carrot        0.391   55/576   -4.723   -5.717   +0.994    +63.0%  VERIFIED      REAL          TN  (ok)
+  bird           turkey        0.181  369/576   -8.875   -8.501   -0.373    -45.2%  HALLUCINATED  HALLUCINATED  TP  (caught)
+  dining table   table         0.724  265/576   -1.688   -1.444   -0.245    -27.7%  HALLUCINATED  REAL          FP  (false flag)
+  lettuce        lettuce       0.521  127/576   -5.527   -6.971   +1.444    +76.4%  VERIFIED      UNKNOWN       TN  (ok)
+  variety        variety       0.589  367/576   -3.640   -7.176   +3.536    +97.1%  VERIFIED      UNKNOWN       TN  (ok)
+  plate          plate         0.786  265/576   -0.281   -0.757   +0.476    +37.9%  VERIFIED      UNKNOWN       TN  (ok)
+  food           food          0.529  376/576   -6.195   -6.072   -0.123    -13.1%  HALLUCINATED  UNKNOWN       TN  (ok)
+  meat           meat          0.445  121/576   -7.672   -8.339   +0.667    +48.7%  VERIFIED      UNKNOWN       TN  (ok)
 ======================================================================================================================
 [ 50/50] COCO_val2014_000000013550.jpg   (image_id=13550)
   caption : In the image, there is a woman, an elephant, and a group of elephants. The woman is feeding the elephant, and she is wearing a hat. The elephant is standing next to the woman, and there are other elephants in the background. The scene
   GT COCO : elephant, handbag, person
   probes  : K=20  (GT-present probes: 0 = 0.0%  [tau_low relaxed])
-  null    : mu_hat=-0.2956  sigma_hat=0.3959  -> tau(kappa=1.0) = +0.1003
+  null    : mu_hat=-0.1555  sigma_hat=0.3120  -> tau(kappa=1.0) = +0.1565
 
   object         surface       s_det  patches      ell  ell_msk    Delta conf_drop  decision      ground truth  outcome
   ------------------------------------------------------------------------------------------------------------------
-  person         woman         0.802  195/576   -2.722   -6.314   +3.592    +97.2%  VERIFIED      REAL          TN  (ok)
-  elephant       elephant      0.744  292/576   -2.293   -4.610   +2.317    +90.1%  VERIFIED      REAL          TN  (ok)
+  person         woman         0.802   89/576   -2.722   -7.487   +4.765    +99.1%  VERIFIED      REAL          TN  (ok)
+  elephant       elephant      0.744  236/576   -2.293   -4.642   +2.349    +90.5%  VERIFIED      REAL          TN  (ok)
+  hat            hat           0.331   89/576  -11.074  -12.081   +1.007    +63.5%  VERIFIED      UNKNOWN       TN  (ok)
 
 ######################################################################################################################
 # STRATEGY 10 (v2) -- SANITY CHECK SUMMARY
@@ -641,7 +821,9 @@ Setup
 Data
 ----
   images scored        : 50   (skipped: 0)
-  objects mentioned    : 174
+  objects mentioned    : 354
+      scorable (in COCO-80) : 174
+      NOT in COCO-80        : 180  (no ground truth exists for these -- shown in the HTML, excluded from every metric)
       actually REAL         : 141  (81.0%)
       actually HALLUCINATED : 33  (19.0%)   <- base rate
   probes scored        : 1000
@@ -650,29 +832,29 @@ Data
 
 HEADLINE  (kappa = 1.0)
 ----------------------------------------
-  % of ACTUAL hallucinations CAUGHT      : 63.6%   (21/33)
-  % of ACTUAL real objects FALSE-FLAGGED : 22.7%   (32/141)
+  % of ACTUAL hallucinations CAUGHT      : 66.7%   (22/33)
+  % of ACTUAL real objects FALSE-FLAGGED : 24.8%   (35/141)
 
-  precision of the HALLUCINATED flag     : 39.6%   (21/53)
-  overall flag rate                      : 30.5%
-  balanced accuracy                      : 70.5%
+  precision of the HALLUCINATED flag     : 38.6%   (22/57)
+  overall flag rate                      : 32.8%
+  balanced accuracy                      : 70.9%
 
             predicted HALLUC   predicted VERIFIED
-  GT HALLUC           21                 12
-  GT REAL             32                109
+  GT HALLUC           22                 11
+  GT REAL             35                106
 
 KAPPA SWEEP   (zero extra compute: re-thresholds the cached Deltas)
 ----------------------------------------------------------------------------------------------------
    kappa  tau shift      catch % false-flag % precision %     flag %  bal.acc %
   ------------------------------------------------------------------------------------------------
-   -1.00      mu-1s         12.1          2.1        57.1        4.0       55.0
-   -0.50    mu-0.5s         24.2          3.5        61.5        7.5       60.3
-    0.00      mu+0s         27.3          5.7        52.9        9.8       60.8
-    0.50    mu+0.5s         45.5         10.6        50.0       17.2       67.4
-    1.00      mu+1s         63.6         22.7        39.6       30.5       70.5  <- default
-    1.50    mu+1.5s         75.8         30.5        36.8       39.1       72.6
-    2.00      mu+2s         93.9         39.0        36.0       49.4       77.5
-    2.50    mu+2.5s         93.9         49.6        30.7       58.0       72.1
+   -1.00      mu-1s         18.2          3.5        54.5        6.3       57.3
+   -0.50    mu-0.5s         24.2          4.3        57.1        8.0       60.0
+    0.00      mu+0s         30.3          7.8        47.6       12.1       61.3
+    0.50    mu+0.5s         42.4         14.9        40.0       20.1       63.8
+    1.00      mu+1s         66.7         24.8        38.6       32.8       70.9  <- default
+    1.50    mu+1.5s         75.8         34.0        34.2       42.0       70.9
+    2.00      mu+2s         90.9         41.1        34.1       50.6       74.9
+    2.50    mu+2.5s         93.9         46.1        32.3       55.2       73.9
 
   (kappa UP  -> tau UP -> fewer objects clear the bar -> MORE flagged:
    catch rate rises, false-flag rate rises. kappa is a pure sensitivity knob.)
@@ -681,37 +863,56 @@ DIAGNOSTICS
 ------------------------------------------------------------
   Localisation (GroundingDINO) -- candidates vs probes:
                                    candidates       probes
-      mean s_det                        0.514        0.112
-      mean instances masked              2.20         1.00
-      mean masked patches /576            174          198
-      mean ell (unmasked)              -3.753       -7.395
-      mean Delta                       +1.339       -0.454
+      mean s_det                        0.504        0.112
+      mean instances masked              1.82         1.00
+      mean masked patches /576            129          118
+      mean ell (unmasked)              -4.421       -7.396
+      mean Delta                       +1.149       -0.333
 
       ^ If candidates and probes differ systematically in masked-patch count,
         Delta is not measuring the same thing for the two groups and the
         'procedural symmetry' Sec 4.2 relies on is only nominal.
 
   Masking integrity:
-      residual leak into masked patches (max |dev|, pre-enforcement) : 3.01e-01
+      residual leak into masked patches (max |dev|, pre-enforcement) : 3.15e-01
       objects where mask enforcement FAILED                          : 0
-      boxes falling outside the centre-crop (nothing to mask)        : 3
+      boxes falling outside the centre-crop (nothing to mask)        : 4
 
   Separation of the signal itself (does Delta even carry the information?):
-      mean Delta | GT REAL          : +1.6555
-      mean Delta | GT HALLUCINATED  : -0.0161
-      mean Delta | probes (null)    : -0.4540
-      AUROC (Delta as a REAL-vs-HALLUC score) : 0.807
+      mean Delta | GT REAL          : +1.3450
+      mean Delta | GT HALLUCINATED  : -0.0452
+      mean Delta | probes (null)    : -0.3331
+      AUROC (Delta as a REAL-vs-HALLUC score) : 0.792
       ^ AUROC is kappa-free: it is the ceiling ANY threshold rule on this Delta
         could reach. 0.50 == the score is uninformative.
 
   Sec 4.3.2 -- is the Gaussian quantile reading of kappa licensed?
-      pooled standardised probe Deltas: n=1000, skew=-0.739, excess kurtosis=+1.473
+      pooled standardised probe Deltas: n=1000, skew=-0.479, excess kurtosis=+0.943
       (a normal reference gives skew ~ 0 and excess kurtosis ~ 0)
       For reference, at the default kappa the two OPTIONAL readings would say:
           Gaussian tail  1-Phi(1.0)       = 0.159   [valid ONLY if the above looks normal]
           Cantelli bound 1/(1+kappa^2)         = 0.500   [distribution-free, but very loose]
-      Observed false-verification proxy (false-flag rate) = 22.7% = 0.227
+      Observed false-verification proxy (false-flag rate) = 24.8% = 0.248
       Neither reading is invoked by the method; kappa is reported as an
       empirically-tuned sensitivity parameter, per Sec 8.
+
+====================================================================================================
+AUROC -- can each score tell a REAL object from a HALLUCINATED one at all?
+====================================================================================================
+  AUROC = P(random REAL scores higher than random HALLUCINATED).
+  It is threshold-free and kappa-free: it is the CEILING any threshold rule
+  on that score could reach. 0.50 = the score carries no information.
+
+  score                                                AUROC    mean|REAL   mean|HALL
+  ------------------------------------------------------------------------------------
+  s_det (GroundingDINO alone)   <- BASELINE TO BEAT    0.859       +0.557      +0.334  <=== best
+  delta        = l - l_masked          [Eq. 7, the spec]   0.792       +1.345      -0.045
+  delta_lo     = LO - LO_masked        [existence log-odds]   0.727       +3.187      +1.346
+
+  best occlusion score (delta) vs detector baseline: 0.792 vs 0.859   (-0.067)
+  ^^ THE OCCLUSION MACHINERY IS NOT BEATING A RAW DETECTOR SCORE.
+     That is the headline finding, and it matters more than any
+     catch-rate number below it. Do not tune kappa around this.
+====================================================================================================
 
 ######################################################################################################################
