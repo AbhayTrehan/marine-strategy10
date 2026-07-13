@@ -113,6 +113,36 @@ class Strategy10V2Config:
         default_factory=lambda: [-1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0, 2.5]
     )
 
+    # ---- segmentation (Grounded-SAM) ----------------------------------------
+    # SAM cannot replace GroundingDINO -- it has no text input and cannot be asked to
+    # "find the laptop". GDINO localises (box), SAM refines (silhouette). A box around
+    # a table contains the laptop, the cup and the wall; a silhouette does not. In the
+    # first real run one object's box masked 77% of the image, which made Delta a
+    # measure of masked AREA rather than of grounding.
+    seg_backend: str = "sam"                       # "sam" | "box"
+    sam_path: str = "facebook/sam-vit-base"
+    mask_dilate_patches: int = 0                   # grow R(w) by n patch rings
+
+    # ---- scoring heads -------------------------------------------------------
+    # All are computed from the SAME masked images and calibrated against the SAME
+    # probes, so the report can print AUROC for each and the data can pick the winner.
+    #   delta         : Eq. (4)/(6)/(7), the spec's score, VERBATIM
+    #   delta_lo      : existence log-odds -- cancels the word's unigram prior
+    #   delta_ctrl    : area-controlled  (needs --control_mask)
+    #   delta_lo_ctrl : both             (needs --control_mask)
+    scores: List[str] = field(default_factory=lambda: ["delta", "delta_lo"])
+    primary_score: str = "delta"       # which score the verify/flag DECISION uses
+    control_mask: bool = False         # --control_mask: mask an equal region elsewhere
+
+    # ---- vocabulary ----------------------------------------------------------
+    # Ground truth is COCO-80 and nothing else, so only COCO objects can be SCORED.
+    # Non-COCO mentions ("headphones", "doll") are extracted and shown with
+    # gt_label=UNKNOWN, and excluded from every metric -- visible, not measured.
+    ram_vocab_file: str = "./data/marine_qa/guidance/coco_ram_th0.68.json"
+    extract_non_coco: bool = True      # surface non-COCO mentions (not scored)
+    probe_vocab: str = "coco"          # "coco" | "ram"
+    dup_iou: float = 0.5               # flag candidates whose regions collide
+
     # ---- masking integrity --------------------------------------------------
     # Re-assert the mask on the normalised pixel_values tensor right before the
     # vision tower. Guarantees a masked patch carries literally zero object

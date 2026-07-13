@@ -85,6 +85,8 @@ def _fmt(v, spec="{:+.4f}"):
 
 
 def _outcome_badge(row: Dict) -> str:
+    if row.get("gt_label") not in ("REAL", "HALLUCINATED"):
+        return '<span class="badge" style="background:#8250df">n/a</span>'
     o = report._outcome(row.get("decision", ""), row.get("gt_label", ""))
     tag = o.split()[0]
     col = {"TP": C_TP, "FP": C_FP, "FN": C_FN, "TN": C_TN}.get(tag, C_TN)
@@ -117,22 +119,38 @@ def _object_rows_html(rec: Dict, cfg) -> str:
         dec = row.get("decision", "")
         dec_col = C_HALLUC if dec == "HALLUCINATED" else C_REAL
         gt = row.get("gt_label", "")
-        gt_col = C_HALLUC if gt == "HALLUCINATED" else C_REAL
+        gt_col = {"HALLUCINATED": C_HALLUC, "REAL": C_REAL}.get(gt, "#8250df")
+
+        sc = row.get("scores", {})
+        extra = "".join(
+            f'<div class="sub"><code>{k}</code> {v:+.4f}</div>'
+            for k, v in sc.items() if k != "delta")
+
+        lo = ""
+        if "lo" in row:
+            lo = (f'<div class="sub">LO {row["lo"]:+.2f} &rarr; {row["lo_masked"]:+.2f}'
+                  f' (p(yes) {row["p_yes"]:.2f} &rarr; {row["p_yes_masked"]:.2f})</div>')
+
+        coll = ""
+        if row.get("region_collisions"):
+            c = ", ".join(f"{d['word']} (IoU {d['iou']})" for d in row["region_collisions"])
+            coll = f'<span class="flag warn">region collides with {_html.escape(c)}</span>'
 
         parts.append(f"""
         <tr>
           <td>{thumb}</td>
           <td>
             <div class="obj">{_html.escape(row['word'])}</div>
-            <div class="sub">said as &ldquo;{_html.escape(str(row.get('surface','')))}&rdquo;</div>
+            <div class="sub">said as &ldquo;{_html.escape(str(row.get('surface','')))}&rdquo;
+                {'' if row.get('surface','').lower() == row['word'] else '&rarr; ' + _html.escape(row['word'])}</div>
             <div class="sub">s_det {row['s_det']:.3f} &middot;
-                {row.get('n_instances', 1)} instance{'s' if row.get('n_instances', 1) != 1 else ''}
-                masked &middot; {row['n_patches']}/576 patches ({100*row['patch_frac']:.1f}%)</div>
-            <div>{_flags(row)}</div>
+                {row.get('n_instances', 1)} inst &middot; {row.get('seg','box')} &middot;
+                {row['n_patches']}/576 patches ({100*row['patch_frac']:.1f}%)</div>
+            <div>{_flags(row)} {coll}</div>
           </td>
-          <td class="num">{_fmt(row['ell'], '{:.4f}')}<div class="sub">p={row['p']:.4f}</div></td>
+          <td class="num">{_fmt(row['ell'], '{:.4f}')}<div class="sub">p={row['p']:.4f}</div>{lo}</td>
           <td class="num">{_fmt(row['ell_masked'], '{:.4f}')}<div class="sub">p={row['p_masked']:.4f}</div></td>
-          <td class="num strong">{_fmt(row['delta'])}</td>
+          <td class="num strong">{_fmt(sc.get('delta'))}{extra}</td>
           <td class="num">{row['conf_drop_pct']:+.1f}%</td>
           <td><span class="pill" style="background:{dec_col}">{dec}</span></td>
           <td><span class="pill" style="background:{gt_col}">{gt}</span></td>
@@ -223,6 +241,23 @@ def _image_card(rec: Dict, cfg, idx: int, total: int) -> str:
 
 # --------------------------------------------------------------------------- #
 
+def _auroc_rows(records) -> str:
+    rows = report.auroc_table(records)
+    if not rows:
+        return '<tr><td colspan="4">(no scored objects)</td></tr>'
+    best = max(rows, key=lambda r: r["auroc"])
+    out = []
+    for r in rows:
+        cls = " class=cur" if r is best else ""
+        out.append(
+            f"<tr{cls}><td><code>{_html.escape(r['score'])}</code>"
+            f"<div class='sub'>{_html.escape(r['label'])}</div></td>"
+            f"<td class='num strong'>{r['auroc']:.3f}</td>"
+            f"<td class='num'>{r['mean_real']:+.3f}</td>"
+            f"<td class='num'>{r['mean_hall']:+.3f}</td></tr>")
+    return "".join(out)
+
+
 def _summary_html(records: List[Dict], cfg) -> str:
     used = [r for r in records if not r.get("skipped")]
     obj_rows = [o for r in used for o in r["objects"]]
@@ -280,6 +315,21 @@ def _summary_html(records: List[Dict], cfg) -> str:
           <div class="ml">AUROC of &Delta;  (&kappa;-free ceiling)</div>
           <div class="sub">0.50 = &Delta; carries no signal at all</div>
         </div>
+      </div>
+
+      <h2>AUROC &mdash; can each score tell REAL from HALLUCINATED at all?</h2>
+      <table class="sweep">
+        <thead><tr><th>score</th><th>AUROC</th><th>mean | REAL</th><th>mean | HALLUC</th></tr></thead>
+        <tbody>{_auroc_rows(records)}</tbody>
+      </table>
+      <div class="note">
+        AUROC = P(a random REAL object scores higher than a random HALLUCINATED one).
+        Threshold-free and &kappa;-free: it is the <b>ceiling</b> any threshold rule on
+        that score could reach. 0.50 = the score carries no information.
+        <b>s_det is the baseline to beat</b> &mdash; it is GroundingDINO's raw confidence,
+        with no masking, no occlusion and no LVLM at all. If the occlusion scores do not
+        clearly beat it, the occlusion machinery is not earning its keep, and that matters
+        more than any catch-rate below.
       </div>
 
       <div class="grid2">

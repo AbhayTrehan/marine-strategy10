@@ -69,3 +69,36 @@ def elicitation_prefix() -> str:
     """
     prompt = build_prompt(f"<image>\n{ELICIT_QUESTION}")
     return f"{prompt} {ELICIT_ANSWER_PREFIX}"
+
+
+# --------------------------------------------------------------------------- #
+# Existence elicitation (--scores delta_lo)
+# --------------------------------------------------------------------------- #
+
+EXISTENCE_QUESTION = "Is there a {word} in this image? Please answer yes or no."
+
+
+def existence_prefix(word: str) -> str:
+    """Prompt whose next token is the model's yes/no verdict on w's existence.
+
+    WHY SCORE EXISTENCE RATHER THAN LIKELIHOOD
+    ------------------------------------------
+    Eq. (4)'s l(w) is a length-normalised log-likelihood of the WORD, so it is
+    contaminated by how probable that word is a priori. In the first real run
+    "laptop" scored l = -0.30 (p = 0.74) while "person" scored l = -9.08
+    (p = 0.0001) -- on the SAME image. A word the model already half-expects has
+    nats of room to fall when you occlude it; a word it barely believes has none. So
+    Delta measures (visual grounding x prior confidence), and the second factor is
+    pure nuisance that varies wildly across words.
+
+    A yes/no log-ODDS cancels it:
+
+        LO(w | I) = log p("Yes" | I, "Is there a {w}...?")
+                  - log p("No"  | I, "Is there a {w}...?")
+
+    This is a log odds-ratio of a BELIEF IN EXISTENCE, not a token likelihood. It is
+    on the same scale for every word regardless of that word's unigram frequency, and
+    LLaVA's well-documented yes-bias sits in both terms and cancels in the difference
+    Delta_LO = LO(w|I) - LO(w|I_masked). Same cost: one forward per image variant.
+    """
+    return build_prompt(f"<image>\n{EXISTENCE_QUESTION.format(word=word)}")

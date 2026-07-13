@@ -168,3 +168,67 @@ def verify_enforced(pixel_values: torch.Tensor, patches: Sequence[int],
     if not len(patches):
         return True
     return measure_leak(pixel_values, patches, grid, fill_norm)["max_abs_dev"] <= tol
+
+
+# --------------------------------------------------------------------------- #
+# Controlled masking (--control_mask)
+# --------------------------------------------------------------------------- #
+
+def sample_control_patches(patches, grid: int, rng, max_tries: int = 200):
+    """A patch set of the SAME SIZE AND SHAPE as R(w), placed somewhere else.
+
+    WHY THIS EXISTS
+    ---------------
+    Delta(w) = l(w) - l_masked(w) conflates two effects:
+        (i)  "the pixels that support w are gone"        <- what we want
+        (ii) "a chunk of the image is gone"              <- pure nuisance
+    (ii) scales with masked AREA. In the first real run one object masked 6.8% of the
+    image and another masked 77%; their Deltas are not on the same scale, and no
+    threshold can fix that.
+
+    The control mask removes (ii) by construction. Mask an equally-large, equally-
+    shaped region SOMEWHERE ELSE and ask:
+
+        S(w) = l_control(w) - l_masked(w)
+
+    "Does deleting w's own region hurt w MORE than deleting an equally big irrelevant
+    region?" The area effect appears in both terms and cancels. This is the standard
+    correction for deletion-based attribution metrics, which are known to be
+    meaningless without a matched baseline.
+
+    The control region is a rigid translation of R(w) -- same shape, same patch count
+    -- so it also controls for the region's geometry, not just its size.
+    """
+    patches = sorted(set(patches))
+    if not patches:
+        return []
+
+    rows = [p // grid for p in patches]
+    cols = [p % grid for p in patches]
+    r0, c0 = min(rows), min(cols)
+    h = max(rows) - r0 + 1
+    w = max(cols) - c0 + 1
+    rel = [(r - r0, c - c0) for r, c in zip(rows, cols)]
+    orig = set(patches)
+
+    if h > grid or w > grid:
+        return []
+
+    # Prefer a placement that does not overlap R(w) at all.
+    for _ in range(max_tries):
+        nr = rng.randrange(0, grid - h + 1)
+        nc = rng.randrange(0, grid - w + 1)
+        cand = {(nr + dr) * grid + (nc + dc) for dr, dc in rel}
+        if not (cand & orig):
+            return sorted(cand)
+
+    # Densely-masked image: fall back to the placement with the least overlap.
+    best, best_ov = None, None
+    for _ in range(max_tries):
+        nr = rng.randrange(0, grid - h + 1)
+        nc = rng.randrange(0, grid - w + 1)
+        cand = {(nr + dr) * grid + (nc + dc) for dr, dc in rel}
+        ov = len(cand & orig)
+        if best_ov is None or ov < best_ov:
+            best, best_ov = cand, ov
+    return sorted(best) if best else []

@@ -46,7 +46,9 @@ from marine.strategy10_v2.config import Strategy10V2Config  # noqa: E402
 from marine.strategy10_v2.detector import GroundingDinoDetector  # noqa: E402
 from marine.strategy10_v2.extraction import (  # noqa: E402
     build_chair_for_images, coco_categories, load_cooccurrence, load_questions,
+    load_ram_vocabulary,
 )
+from marine.strategy10_v2.segmenter import SamSegmenter  # noqa: E402
 from marine.strategy10_v2.model_loader import describe_visual_grid, load_lvlm  # noqa: E402
 from marine.strategy10_v2.pipeline import Strategy10V2Pipeline  # noqa: E402
 
@@ -91,6 +93,33 @@ def parse_args():
     p.add_argument("--kappa", type=float, default=d.kappa)
     p.add_argument("--kappa_sweep", type=str, default=",".join(map(str, d.kappa_sweep)))
 
+    # ---- segmentation ----
+    p.add_argument("--seg_backend", choices=["sam", "box"], default=d.seg_backend,
+                   help="sam: GDINO box -> SAM silhouette (pixel-accurate). "
+                        "box: the raw rectangle (previous behaviour).")
+    p.add_argument("--sam_path", type=str, default=d.sam_path)
+    p.add_argument("--mask_dilate_patches", type=int, default=d.mask_dilate_patches)
+
+    # ---- scoring heads ----
+    p.add_argument("--scores", type=str, default=",".join(d.scores),
+                   help="comma list of: delta, delta_lo  (control variants are added "
+                        "automatically with --control_mask)")
+    p.add_argument("--primary_score", type=str, default=d.primary_score,
+                   help="which score the verify/flag DECISION uses. Default 'delta' "
+                        "keeps the headline numbers on the spec's own score; every "
+                        "other score is still measured and its AUROC reported.")
+    p.add_argument("--control_mask", action="store_true",
+                   help="also mask an equally-large, equally-shaped region ELSEWHERE, "
+                        "and score the difference. Cancels the 'a big mask makes "
+                        "everything less likely' confound. +2 forwards per word.")
+
+    # ---- vocabulary ----
+    p.add_argument("--ram_vocab_file", type=str, default=d.ram_vocab_file)
+    p.add_argument("--no_extract_non_coco", action="store_true",
+                   help="do not surface mentions that have no COCO class")
+    p.add_argument("--probe_vocab", choices=["coco", "ram"], default=d.probe_vocab)
+    p.add_argument("--dup_iou", type=float, default=d.dup_iou)
+
     p.add_argument("--no_enforce_pixel_mask", action="store_true",
                    help="DIAGNOSTIC ONLY: skip re-asserting the mask on pixel_values. "
                         "Leaves resize-interpolation leakage in the masked patches; "
@@ -117,6 +146,13 @@ def parse_args():
         kappa=a.kappa,
         kappa_sweep=[float(x) for x in a.kappa_sweep.split(",") if x.strip()],
         enforce_pixel_mask=not a.no_enforce_pixel_mask,
+        seg_backend=a.seg_backend, sam_path=a.sam_path,
+        mask_dilate_patches=a.mask_dilate_patches,
+        scores=[x.strip() for x in a.scores.split(",") if x.strip()],
+        primary_score=a.primary_score, control_mask=a.control_mask,
+        ram_vocab_file=a.ram_vocab_file,
+        extract_non_coco=not a.no_extract_non_coco,
+        probe_vocab=a.probe_vocab, dup_iou=a.dup_iou,
         output_dir=a.output_dir, html_max_width=a.html_max_width,
     )
     return cfg, a
@@ -140,7 +176,8 @@ def write_csv(records, path):
         w.writerow([
             "image_file", "image_id", "role", "word", "surface", "s_det",
             "n_instances", "n_patches", "patch_frac", "outside_crop", "leak_max",
-            "ell", "ell_masked", "delta", "conf_drop_pct",
+            "seg", "ell", "ell_masked", "delta", "delta_lo", "delta_ctrl",
+            "delta_lo_ctrl", "conf_drop_pct",
             "mu_hat", "sigma_hat", "tau", "decision", "gt_label", "outcome",
         ])
         for rec in records:
@@ -153,8 +190,12 @@ def write_csv(records, path):
                         r.get("surface", ""), f"{r['s_det']:.4f}",
                         r.get("n_instances", 1), r["n_patches"], f"{r['patch_frac']:.4f}",
                         int(bool(r.get("outside_crop"))), f"{r.get('leak_max', 0.0):.3e}",
+                        r.get("seg", "box"),
                         f"{r['ell']:.5f}", f"{r['ell_masked']:.5f}",
-                        f"{r['delta']:.5f}", f"{r['conf_drop_pct']:.3f}",
+                        *[("" if r.get("scores", {}).get(k) is None
+                           else f"{r['scores'][k]:.5f}")
+                          for k in ("delta", "delta_lo", "delta_ctrl", "delta_lo_ctrl")],
+                        f"{r['conf_drop_pct']:.3f}",
                         f"{rec['mu_hat']:.5f}", f"{rec['sigma_hat']:.5f}", f"{rec['tau']:.5f}",
                         r.get("decision", ""),
                         r.get("gt_label", "GT_PRESENT" if r.get("gt_present") else "GT_ABSENT"),
@@ -201,6 +242,17 @@ def main():
 
     cooccur = load_cooccurrence(cfg.cooccur_file)
 
+    ram_vocab = []
+    if cfg.extract_non_coco or cfg.probe_vocab == "ram":
+        ram_vocab = load_ram_vocabulary(cfg.ram_vocab_file)
+        print(f"[setup] RAM++ vocabulary: {len(ram_vocab)} tags")
+
+    if cfg.probe_vocab == "ram" and ram_vocab:
+        # Probes need NO ground truth, so a richer probe vocabulary is a free win:
+        # it makes the null model far more informative than 60 leftover COCO words.
+        vocabulary = sorted(set(vocabulary) | set(ram_vocab))
+        print(f"[setup] probe vocabulary expanded to {len(vocabulary)} words")
+
     print(f"[setup] loading LVLM {cfg.model_path} ({'fp16' if cfg.fp16 else 'fp32'})...")
     model, tokenizer, processor = load_lvlm(cfg.model_path, cfg.fp16, cfg.device)
     grid, n_image_tokens = describe_visual_grid(model)
@@ -215,11 +267,20 @@ def main():
         max_instances=cfg.det_max_instances, nms_iou=cfg.det_nms_iou,
     )
 
+    segmenter = None
+    if cfg.seg_backend == "sam":
+        print(f"[setup] loading SAM {cfg.sam_path} (GDINO box -> pixel silhouette)...")
+        segmenter = SamSegmenter(cfg.sam_path, cfg.device, cfg.detector_fp16)
+
     pipe = Strategy10V2Pipeline(
-        cfg, model, tokenizer, processor, detector, evaluator, vocabulary, cooccur, grid
+        cfg, model, tokenizer, processor, detector, evaluator, vocabulary, cooccur, grid,
+        segmenter=segmenter, extra_vocab=ram_vocab if cfg.extract_non_coco else None,
     )
     print(f"[setup] task prompt x = {cfg.task_prompt!r}")
     print(f"[setup] c_elicit = {pipe.elicit_prefix!r}")
+    print(f"[setup] scores    = {cfg.scores} "
+          f"{'+ control variants' if cfg.control_mask else ''}  "
+          f"(decision on: {cfg.primary_score})")
     print(f"[setup] R(w) = union of ALL detected instances "
           f"(ratio={cfg.det_inst_ratio}, floor={cfg.det_inst_floor}, "
           f"max={cfg.det_max_instances})")
@@ -273,6 +334,8 @@ def main():
             f.write(report.format_image_block(rec, i, len(records)) + "\n")
         f.write(summary + "\n")
 
+    print(report.format_auroc_table(records))
+    print()
     print(f"[saved] {html_path}   <-- open this one")
     print(f"[saved] {json_path}")
     print(f"[saved] {csv_path}")

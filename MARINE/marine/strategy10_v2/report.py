@@ -95,15 +95,30 @@ def _outcome(decision: str, gt_label: str) -> str:
 # aggregate
 # --------------------------------------------------------------------------- #
 
-def confusion_at_kappa(records: List[Dict], kappa: float) -> Dict:
-    """Re-derive the verify/flag decision at an arbitrary kappa from cached Deltas."""
+def confusion_at_kappa(records: List[Dict], kappa: float, score: str = None) -> Dict:
+    """Re-derive the verify/flag decision at an arbitrary kappa from the cached scores.
+
+    Objects with gt_label == "UNKNOWN" (mentions with no COCO class, e.g.
+    "headphones") are SKIPPED: there is no ground truth for them, so counting them
+    would mean inventing their labels.
+    """
     TP = FP = FN = TN = 0
     for rec in records:
         if rec.get("skipped"):
             continue
-        tau = calibration.threshold(rec["mu_hat"], rec["sigma_hat"], kappa)
+        sc = score or rec.get("primary_score", "delta")
+        null = (rec.get("null") or {}).get(sc)
+        if null is not None:
+            tau = calibration.threshold(null["mu"], null["sigma"], kappa)
+        else:
+            tau = calibration.threshold(rec["mu_hat"], rec["sigma_hat"], kappa)
         for r in rec["objects"]:
-            flagged = r["delta"] < tau
+            if r.get("gt_label") not in ("REAL", "HALLUCINATED"):
+                continue                       # no ground truth -> not scorable
+            v = r.get("scores", {}).get(sc, r.get("delta"))
+            if v is None:
+                continue
+            flagged = v < tau
             hallucinated = r["gt_label"] == "HALLUCINATED"
             if flagged and hallucinated:
                 TP += 1
@@ -131,8 +146,11 @@ def format_summary(records: List[Dict], cfg) -> str:
     used = [r for r in records if not r.get("skipped")]
     skipped = [r for r in records if r.get("skipped")]
 
-    n_obj = sum(len(r["objects"]) for r in used)
-    n_hall = sum(1 for r in used for o in r["objects"] if o["gt_label"] == "HALLUCINATED")
+    all_obj = [o for r in used for o in r["objects"]]
+    scored = [o for o in all_obj if o.get("gt_label") in ("REAL", "HALLUCINATED")]
+    n_unknown = len(all_obj) - len(scored)
+    n_obj = len(scored)
+    n_hall = sum(1 for o in scored if o["gt_label"] == "HALLUCINATED")
     n_real = n_obj - n_hall
     n_probes = sum(len(r["probes"]) for r in used)
     n_contam = sum(1 for r in used for p in r["probes"] if p.get("gt_present"))
@@ -162,7 +180,10 @@ def format_summary(records: List[Dict], cfg) -> str:
     L.append(f"  images scored        : {len(used)}   (skipped: {len(skipped)})")
     for r in skipped:
         L.append(f"      - {r['image_file']}: {r['skipped']}")
-    L.append(f"  objects mentioned    : {n_obj}")
+    L.append(f"  objects mentioned    : {len(all_obj)}")
+    L.append(f"      scorable (in COCO-80) : {n_obj}")
+    L.append(f"      NOT in COCO-80        : {n_unknown}  (no ground truth exists for "
+             f"these -- shown in the HTML, excluded from every metric)")
     L.append(f"      actually REAL         : {n_real}  ({_pct(n_real, n_obj):.1f}%)")
     L.append(f"      actually HALLUCINATED : {n_hall}  ({_pct(n_hall, n_obj):.1f}%)   <- base rate")
     L.append(f"  probes scored        : {n_probes}")
@@ -214,7 +235,7 @@ def format_summary(records: List[Dict], cfg) -> str:
     L.append("DIAGNOSTICS")
     L.append("-" * 60)
 
-    obj_rows = [o for r in used for o in r["objects"]]
+    obj_rows = all_obj
     probe_rows = [p for r in used for p in r["probes"]]
 
     def _mean(rows, key):
@@ -284,6 +305,7 @@ def format_summary(records: List[Dict], cfg) -> str:
              f"{c['false_flag_rate']:.1f}% = {c['false_flag_rate'] / 100:.3f}")
     L.append("      Neither reading is invoked by the method; kappa is reported as an")
     L.append("      empirically-tuned sensitivity parameter, per Sec 8.")
+    L.append(format_auroc_table(records))
     L.append("")
     L.append("#" * 118)
     return "\n".join(L)
@@ -311,3 +333,97 @@ def _auroc(pos: List[float], neg: List[float]) -> float:
     rank_sum_pos = sum(ranks[k] for k in range(len(allv)) if allv[k][1] == 1)
     n1, n0 = len(pos), len(neg)
     return (rank_sum_pos - n1 * (n1 + 1) / 2.0) / (n1 * n0)
+
+
+# --------------------------------------------------------------------------- #
+# THE ABLATION TABLE: AUROC per score, plus the detector baseline
+# --------------------------------------------------------------------------- #
+
+SCORE_LABELS = {
+    "s_det": "s_det (GroundingDINO alone)   <- BASELINE TO BEAT",
+    "delta": "delta        = l - l_masked          [Eq. 7, the spec]",
+    "delta_lo": "delta_lo     = LO - LO_masked        [existence log-odds]",
+    "delta_ctrl": "delta_ctrl   = l_ctrl - l_masked     [area-controlled]",
+    "delta_lo_ctrl": "delta_lo_ctrl= LO_ctrl - LO_masked   [both]",
+}
+
+
+def scored_objects(records):
+    """Only COCO objects have ground truth, so only they can enter a metric."""
+    return [o for r in records if not r.get("skipped")
+            for o in r["objects"] if o.get("gt_label") in ("REAL", "HALLUCINATED")]
+
+
+def auroc_table(records) -> List[Dict]:
+    """AUROC of each score as a REAL-vs-HALLUCINATED discriminator.
+
+    AUROC = P(a random REAL object scores higher than a random HALLUCINATED one).
+    It needs no threshold and no kappa, so it is the CEILING that any threshold rule
+    on that score could reach. 0.50 means the score is pure noise.
+
+    s_det is included deliberately as the baseline: it is GroundingDINO's raw
+    confidence, with no masking, no occlusion and no LVLM at all. If the causal
+    occlusion scores do not clearly beat it, the entire occlusion apparatus is not
+    earning its keep -- and that is the single most important thing this run can tell
+    us.
+    """
+    objs = scored_objects(records)
+    real = [o for o in objs if o["gt_label"] == "REAL"]
+    hall = [o for o in objs if o["gt_label"] == "HALLUCINATED"]
+
+    rows = []
+    for key in ["s_det", "delta", "delta_lo", "delta_ctrl", "delta_lo_ctrl"]:
+        def get(o):
+            return o["s_det"] if key == "s_det" else o.get("scores", {}).get(key)
+
+        r = [get(o) for o in real if get(o) is not None]
+        h = [get(o) for o in hall if get(o) is not None]
+        if not r or not h:
+            continue
+        rows.append({
+            "score": key,
+            "label": SCORE_LABELS.get(key, key),
+            "auroc": _auroc(r, h),
+            "n_real": len(r), "n_hall": len(h),
+            "mean_real": sum(r) / len(r),
+            "mean_hall": sum(h) / len(h),
+        })
+    return rows
+
+
+def format_auroc_table(records) -> str:
+    rows = auroc_table(records)
+    L = ["", "=" * 100,
+         "AUROC -- can each score tell a REAL object from a HALLUCINATED one at all?",
+         "=" * 100,
+         "  AUROC = P(random REAL scores higher than random HALLUCINATED).",
+         "  It is threshold-free and kappa-free: it is the CEILING any threshold rule",
+         "  on that score could reach. 0.50 = the score carries no information.",
+         ""]
+    if not rows:
+        L.append("  (no scored objects)")
+        return "\n".join(L)
+
+    L.append("  {:<50} {:>7}  {:>11} {:>11}".format(
+        "score", "AUROC", "mean|REAL", "mean|HALL"))
+    L.append("  " + "-" * 84)
+    best = max(rows, key=lambda r: r["auroc"])
+    for r in rows:
+        star = "  <=== best" if r is best else ""
+        L.append("  {:<50} {:>7.3f}  {:>+11.3f} {:>+11.3f}{}".format(
+            r["label"], r["auroc"], r["mean_real"], r["mean_hall"], star))
+
+    base = next((r for r in rows if r["score"] == "s_det"), None)
+    occ = [r for r in rows if r["score"] != "s_det"]
+    L.append("")
+    if base and occ:
+        bo = max(occ, key=lambda r: r["auroc"])
+        gap = bo["auroc"] - base["auroc"]
+        L.append(f"  best occlusion score ({bo['score']}) vs detector baseline: "
+                 f"{bo['auroc']:.3f} vs {base['auroc']:.3f}   ({gap:+.3f})")
+        if gap <= 0.02:
+            L.append("  ^^ THE OCCLUSION MACHINERY IS NOT BEATING A RAW DETECTOR SCORE.")
+            L.append("     That is the headline finding, and it matters more than any")
+            L.append("     catch-rate number below it. Do not tune kappa around this.")
+    L.append("=" * 100)
+    return "\n".join(L)

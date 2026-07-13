@@ -159,3 +159,77 @@ def patches_bounding_box(patch_indices: Sequence[int], grid: int,
         min(b[0] for b in boxes), min(b[1] for b in boxes),
         max(b[2] for b in boxes), max(b[3] for b in boxes),
     ]
+
+
+# --------------------------------------------------------------------------- #
+# pixel mask (from SAM) -> ViT patch grid
+# --------------------------------------------------------------------------- #
+
+def mask_to_patches(mask, grid: int, orig_w: int, orig_h: int, image_processor):
+    """A boolean HxW pixel mask -> the set of ViT patches it touches.
+
+    Same inclusivity rule as box_to_patches: a patch containing ANY masked pixel is
+    taken IN FULL, because the ViT reads a patch as one indivisible token and half a
+    token of object is still object.
+
+    The mask is pushed through the SAME resize+centre-crop the image goes through
+    (nearest-neighbour, so it stays boolean), landing it in the 336x336 crop frame
+    where the patch grid is literally a reshape. That keeps the mask and the image in
+    lockstep -- no interpolation, no drift, no chance of masking patch (3,7) while the
+    object actually lives in patch (3,8).
+    """
+    import numpy as np
+    from PIL import Image as _Image
+
+    g = compute_geometry(orig_w, orig_h, image_processor)
+    cw, ch = int(g["crop_w"]), int(g["crop_h"])
+
+    new_w = max(1, int(round(g["scale_x"] * orig_w)))
+    new_h = max(1, int(round(g["scale_y"] * orig_h)))
+
+    m = _Image.fromarray((np.asarray(mask).astype(np.uint8) * 255))
+    m = m.resize((new_w, new_h), _Image.NEAREST)
+    m = m.crop((g["left"], g["top"], g["left"] + cw, g["top"] + ch))
+    arr = np.array(m) > 127                                    # [ch, cw] in crop frame
+
+    p_h, p_w = ch // grid, cw // grid
+    arr = arr[: grid * p_h, : grid * p_w]
+    cells = arr.reshape(grid, p_h, grid, p_w).any(axis=(1, 3))  # [grid, grid]
+
+    patches = [int(r) * grid + int(c) for r, c in zip(*np.nonzero(cells))]
+    info = {
+        "outside_crop": len(patches) == 0,
+        "clipped_by_crop": False,
+        "n_patches": len(patches),
+        "patch_frac": len(patches) / float(grid * grid),
+    }
+    return sorted(patches), info
+
+
+def dilate_patches(patches, grid: int, n: int = 1):
+    """Grow a patch set by n rings. Optional belt-and-braces against a silhouette
+    that clips the object's own boundary by a pixel."""
+    if n <= 0 or not patches:
+        return sorted(patches)
+    cur = set(patches)
+    for _ in range(int(n)):
+        nxt = set(cur)
+        for p in cur:
+            r, c = divmod(p, grid)
+            for dr in (-1, 0, 1):
+                for dc in (-1, 0, 1):
+                    rr, cc = r + dr, c + dc
+                    if 0 <= rr < grid and 0 <= cc < grid:
+                        nxt.add(rr * grid + cc)
+        cur = nxt
+    return sorted(cur)
+
+
+def patch_iou(a, b) -> float:
+    """IoU between two patch sets. Used to flag candidates whose regions collide --
+    if 'person' and 'teddy bear' mask the same patches, their Deltas are not
+    independent measurements and the report should say so."""
+    sa, sb = set(a), set(b)
+    if not sa or not sb:
+        return 0.0
+    return len(sa & sb) / float(len(sa | sb))

@@ -420,3 +420,106 @@ def load_questions(path: str, n: int) -> List[Tuple[str, int]]:
         img = item["image"]
         out.append((img, image_file_to_id(img)))
     return out
+
+
+# --------------------------------------------------------------------------- #
+# Extended vocabulary: RAM++ tags
+# --------------------------------------------------------------------------- #
+#
+# THE HARD CONSTRAINT, STATED PLAINLY
+# -----------------------------------
+# Ground truth is CHAIR.imid_to_objects, which contains ONLY the 80 MSCOCO
+# categories. So an object can be scored REAL vs HALLUCINATED **only if it is one of
+# those 80**. That is not a limitation of this code; it is a limitation of what COCO
+# annotates.
+#
+# Two consequences, both of which the pipeline now handles explicitly rather than
+# silently:
+#
+#   1. "desk" -> "dining table" is NOT a parser bug. COCO genuinely annotates desks
+#      under `dining table`, so for GT purposes the mapping is CORRECT. It looks
+#      wrong; it is the taxonomy, not the code. The report now prints the
+#      surface -> canonical mapping for every mention so these collapses are VISIBLE
+#      instead of silent.
+#
+#   2. Mentions with no COCO class at all -- "headphones", "doll", "carriage" -- used
+#      to be DROPPED, i.e. never tested, even though they are plausibly the most
+#      hallucination-prone things the model says. They are now EXTRACTED and scored
+#      (you can see Delta for "headphones" in the report), but they carry
+#      gt_label = "UNKNOWN" and are EXCLUDED from catch-rate / false-flag / AUROC,
+#      because there is no ground truth to score them against. Including them in the
+#      metrics would be inventing labels.
+#
+# Expanding the CANDIDATE vocabulary therefore expands what you can SEE, not what you
+# can MEASURE. Expanding the PROBE vocabulary is different -- probes need no ground
+# truth at all -- so --probe_vocab ram is a straightforwardly good idea.
+
+import json as _json
+import os as _os
+
+_RAM_STOPWORDS = {
+    # RAM++ tags are not all nouns; drop the obvious verbs/abstractions so they do
+    # not become probes or candidates.
+    "adjust", "attach", "approach", "balance", "take", "stand", "sit", "walk", "run",
+    "hold", "look", "sew", "watch", "play", "ride", "eat", "drink", "smile", "wear",
+    "cut", "cook", "throw", "catch", "jump", "fly", "swim", "read", "write", "talk",
+    "art", "area", "accident", "back", "front", "side", "top", "bottom", "view",
+    "photo", "picture", "image", "scene", "background", "foreground", "color",
+    "light", "shadow", "reflection", "pattern", "texture", "material", "shape",
+    "group", "pair", "row", "line", "pile", "stack", "collection", "set", "part",
+}
+
+
+def load_ram_vocabulary(path: str) -> List[str]:
+    """The RAM++ tag vocabulary shipped with this repo
+    (data/marine_qa/guidance/coco_ram_th0.68.json): ~1,180 distinct tags."""
+    if not _os.path.exists(path):
+        print(f"[extraction] RAM++ tag file not found at {path}; falling back to COCO-80.")
+        return []
+    with open(path) as f:
+        data = _json.load(f)
+
+    tags = set()
+    for item in data:
+        for t in item.get("objects", []):
+            t = str(t).strip().lower()
+            if t and len(t) < 30 and t not in _RAM_STOPWORDS:
+                tags.add(t)
+    return sorted(tags)
+
+
+def extract_objects_extended(evaluator, caption: str, extra_vocab=None) -> List[Dict]:
+    """O = ExtractCanonicalObjects(y), plus mentions that have no COCO class.
+
+    COCO mentions come from CHAIR exactly as before (so they stay bit-identical to
+    what the CHAIR benchmark scores). On top of that, any tag from `extra_vocab`
+    appearing in the response is surfaced as a NON-COCO candidate:
+    scorable by the pipeline, visible in the report, but gt_label = UNKNOWN and
+    excluded from every metric.
+    """
+    objects = extract_objects(evaluator, caption)
+    if not extra_vocab:
+        return objects
+
+    seen_surface = {o["surface"].lower() for o in objects}
+    seen_canon = {o["object"] for o in objects}
+    text = " " + caption.lower() + " "
+
+    extra = []
+    # longest tags first so "baby carriage" wins over "carriage"
+    for tag in sorted(extra_vocab, key=len, reverse=True):
+        if tag in seen_canon or tag in seen_surface:
+            continue
+        if f" {tag} " in text or f" {tag}s " in text or f" {tag}, " in text or f" {tag}." in text:
+            if any(tag in e["object"] or e["object"] in tag for e in extra):
+                continue                      # don't double-count nested tags
+            extra.append({
+                "object": tag,
+                "surface": tag,
+                "span_idx": -1,
+                "in_coco": False,
+            })
+
+    for o in objects:
+        o["in_coco"] = True
+    return objects + extra

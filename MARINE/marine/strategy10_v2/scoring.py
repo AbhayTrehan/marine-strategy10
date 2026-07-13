@@ -40,7 +40,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 import torch
 
-from . import masking
+from . import masking, prompts
 
 
 def continuation_length(tokenizer, prefix: str, full: str) -> int:
@@ -66,6 +66,86 @@ class OcclusionScorer:
 
     # ------------------------------------------------------------------ #
     @torch.inference_mode()
+    def _forward(self, text: str, image,
+                 mask_patches: Optional[Sequence[int]] = None,
+                 fill_norm: Optional[Sequence[float]] = None,
+                 measure: bool = False):
+        """One forward pass, with the mask asserted on pixel_values before the ViT.
+
+        Shared by BOTH scoring heads (likelihood and existence) so that a masked
+        image is masked identically no matter which score is being computed.
+        """
+        inputs = self.processor(text=text, images=image, return_tensors="pt")
+        inputs = {k: v.to(self.device) for k, v in inputs.items()
+                  if isinstance(v, torch.Tensor)}
+        inputs["pixel_values"] = inputs["pixel_values"].to(self.dtype)
+
+        leak = None
+        if mask_patches is not None and len(mask_patches) and fill_norm is not None:
+            if measure:
+                leak = masking.measure_leak(
+                    inputs["pixel_values"].float(), mask_patches, self.grid, fill_norm
+                )
+            inputs["pixel_values"] = masking.enforce_on_pixel_values(
+                inputs["pixel_values"], mask_patches, self.grid, fill_norm
+            )
+            enforced_ok = masking.verify_enforced(
+                inputs["pixel_values"], mask_patches, self.grid, fill_norm
+            )
+        else:
+            enforced_ok = True
+
+        outputs = self.model(**inputs, use_cache=False, return_dict=True)
+        return outputs.logits[0].float(), inputs["input_ids"][0], leak, enforced_ok
+
+    # ------------------------------------------------------------------ #
+    @torch.inference_mode()
+    def score_existence(self, word: str, image,
+                        mask_patches: Optional[Sequence[int]] = None,
+                        fill_norm: Optional[Sequence[float]] = None,
+                        measure: bool = False) -> Dict:
+        """LO(w) = log p("Yes") - log p("No") for "Is there a {w} in this image?".
+
+        A log ODDS-RATIO of the model's belief that w EXISTS -- not a likelihood of
+        the token w. See prompts.existence_prefix for why that difference matters.
+        Read off the single next-token distribution after "ASSISTANT:", so it costs
+        exactly one forward pass, same as Eq. (4).
+        """
+        prefix = prompts.existence_prefix(word)
+        logits, _ids, leak, ok = self._forward(
+            prefix, image, mask_patches, fill_norm, measure
+        )
+        lp = torch.log_softmax(logits[-1, :], dim=-1)   # next-token distribution
+
+        yes_id, no_id = self._yes_no_ids(prefix)
+        return {
+            "lo": float(lp[yes_id].item() - lp[no_id].item()),
+            "p_yes": float(lp[yes_id].exp().item()),
+            "leak": leak,
+            "mask_enforced_ok": bool(ok),
+        }
+
+    def _yes_no_ids(self, prefix: str):
+        """Token ids for "Yes"/"No" AS CONTINUATIONS of the prompt.
+
+        Tokenised in isolation, SentencePiece gives a different (word-initial) piece
+        than it gives mid-sentence, so we diff prefix vs prefix+" Yes" and take the
+        first divergent token -- the same trick continuation_length uses, and for the
+        same reason.
+        """
+        if getattr(self, "_yn", None) is None:
+            def first_new(word):
+                a = self.tokenizer(prefix, add_special_tokens=True)["input_ids"]
+                b = self.tokenizer(f"{prefix} {word}", add_special_tokens=True)["input_ids"]
+                i = 0
+                while i < len(a) and i < len(b) and a[i] == b[i]:
+                    i += 1
+                return b[i]
+            self._yn = (first_new("Yes"), first_new("No"))
+        return self._yn
+
+    # ------------------------------------------------------------------ #
+    @torch.inference_mode()
     def score(self, prefix: str, word: str, image,
               mask_patches: Optional[Sequence[int]] = None,
               fill_norm: Optional[Sequence[float]] = None,
@@ -81,39 +161,10 @@ class OcclusionScorer:
         full = f"{prefix} {word}"
         L = continuation_length(self.tokenizer, prefix, full)
 
-        inputs = self.processor(text=full, images=image, return_tensors="pt")
-        inputs = {k: v.to(self.device) for k, v in inputs.items()
-                  if isinstance(v, torch.Tensor)}
-        inputs["pixel_values"] = inputs["pixel_values"].to(self.dtype)
-
-        leak = None
-        if mask_patches is not None and len(mask_patches) and fill_norm is not None:
-            if measure:
-                # Pre-enforcement leak: measured in fp32 so the number is a truthful
-                # picture of the residual object signal, not of fp16 quantisation.
-                leak = masking.measure_leak(
-                    inputs["pixel_values"].float(), mask_patches, self.grid, fill_norm
-                )
-            inputs["pixel_values"] = masking.enforce_on_pixel_values(
-                inputs["pixel_values"], mask_patches, self.grid, fill_norm
-            )
-            # Verify in the tensor's OWN dtype. enforce_on_pixel_values writes the
-            # fill cast to pixel_values.dtype (fp16 in a normal run); comparing that
-            # back against an fp32 reference sees the ~1e-3 fp16 rounding gap, blows
-            # through any sane tolerance, and reports "MASK NOT ENFORCED" on a mask
-            # that was in fact applied perfectly. Same dtype on both sides -> the
-            # residual is exactly zero, and a real failure still shows up.
-            enforced_ok = masking.verify_enforced(
-                inputs["pixel_values"], mask_patches, self.grid, fill_norm
-            )
-        else:
-            enforced_ok = True
-
-        outputs = self.model(**inputs, use_cache=False, return_dict=True)
-
-        logits = outputs.logits[0].float()          # [S, V]
+        logits, input_ids_row, leak, enforced_ok = self._forward(
+            full, image, mask_patches, fill_norm, measure
+        )
         seq_len = int(logits.shape[0])
-        input_ids_row = inputs["input_ids"][0]
 
         target_ids = input_ids_row[-L:]                        # the word's tokens
         pred_logits = logits[seq_len - L - 1: seq_len - 1, :]  # shift by one
@@ -121,7 +172,7 @@ class OcclusionScorer:
         token_lp = logprobs.gather(-1, target_ids.view(-1, 1)).squeeze(-1)
 
         return {
-            "ell": float(token_lp.mean().item()),   # Eq. (4) / Eq. (6)
+            "ell": float(token_lp.mean().item()),   # Eq. (4) / Eq. (6), VERBATIM
             "L": L,
             "leak": leak,
             "mask_enforced_ok": bool(enforced_ok),

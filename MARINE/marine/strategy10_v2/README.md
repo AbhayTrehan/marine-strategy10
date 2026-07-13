@@ -1,5 +1,56 @@
 # Strategy 10 (v2) — sanity check
 
+## What's new in this revision
+
+**Grounded-SAM regions.** GroundingDINO localises (box), **SAM** refines it to a pixel
+silhouette. *SAM cannot replace GDINO* — it has no text input and cannot be asked to
+"find the laptop"; it needs a box to start from. This matters because a box around a
+table contains the laptop, the cup and the wall: in the previous run one object's box
+masked **77% of the image**, which made Δ a measure of masked *area* rather than of
+grounding. `--seg_backend box` reverts.
+
+**Existence scoring.** Eq. (4)'s ℓ(w) is a *token* log-likelihood, so it is
+contaminated by the word's prior. Last run, on the same image, `laptop` had ℓ = −0.30
+(p = 0.74) while `person` had ℓ = −9.08 (p = 0.0001) — a word the model half-expects
+has nats of room to fall; a word it barely believes has none. So Δ measured
+*grounding × prior confidence*. The new head scores a log **odds-ratio of existence**:
+
+```
+LO(w|I) = log p("Yes" | I, "Is there a {w} in this image?") − log p("No" | …)
+Δ_LO    = LO(w|I) − LO(w|I_masked)
+```
+
+Same cost, scale-free across words, and LLaVA's yes-bias cancels in the difference.
+
+**Controlled masking** (`--control_mask`). Δ conflates "*w*'s pixels are gone" with "*a
+chunk of image* is gone", and the second scales with area. The control mask deletes an
+equally-large, equally-shaped region **elsewhere** and takes the difference, so the
+area effect cancels by construction.
+
+**AUROC ablation, with the detector baseline.** Every score is calibrated against the
+same probes, and the report prints AUROC for each — including **`s_det` alone**
+(GroundingDINO's raw confidence: no masking, no occlusion, no LVLM). If the occlusion
+scores don't clearly beat `s_det`, the machinery isn't earning its keep, and the report
+says so in as many words. That is the most important number in the run.
+
+## The vocabulary constraint — read this
+
+Ground truth is `CHAIR.imid_to_objects`, which contains **only the 80 COCO categories**.
+
+- `desk → dining table` is **not a parser bug**. COCO genuinely annotates desks under
+  `dining table`, so for GT purposes that mapping is *correct*. It's the taxonomy, not
+  the code. The report now prints `surface → canonical` for every mention so these
+  collapses are visible instead of silent.
+- Mentions with **no** COCO class (`headphones`, `doll`, `carriage`) used to be dropped
+  entirely — never tested, though they're plausibly the most hallucination-prone things
+  the model says. They are now extracted and scored, shown in the HTML with
+  `gt_label = UNKNOWN`, and **excluded from every metric**. There is no ground truth for
+  them; including them would mean inventing labels.
+
+So expanding the *candidate* vocabulary expands what you can **see**, not what you can
+**measure**. Expanding the *probe* vocabulary is different — probes need no ground truth
+— so `--probe_vocab ram` (1,142 RAM++ tags) is a straightforward win for the null model.
+
 Training-free object-hallucination **verification** for LVLMs, per `strategy10_v2.pdf`.
 Implements Stages 1–2 (generate → causally verify). **Stage 3 (the LLM rewriter,
 Sec 5) is not run** — this is a sanity check on the verification signal.
