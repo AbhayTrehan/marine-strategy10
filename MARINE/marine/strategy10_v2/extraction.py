@@ -141,7 +141,13 @@ def build_chair_for_images(marine_root: str, coco_annotations: str,
                     and payload.get("coco_annotations") == coco_annotations):
                 print(f"[extraction] loaded targeted ground truth from cache: "
                       f"{cache_path}  ({len(cache_key)} images)")
-                return payload["evaluator"]
+                ev = payload["evaluator"]
+                # A cached evaluator carries the OLD double_word_dict. Re-install
+                # the compound rules or a warm cache silently resurrects the
+                # phantom "player"->PERSON / "baby"->PERSON mentions.
+                n = install_compound_rules(ev)
+                print(f"[extraction] re-installed {n} compound-noun rules onto the cached evaluator")
+                return ev
             print(f"[extraction] cache at {cache_path} is for a different image "
                   f"set / annotations path -- rebuilding (fast; see below).")
         except Exception as exc:
@@ -166,6 +172,10 @@ def build_chair_for_images(marine_root: str, coco_annotations: str,
         evaluator = chair_cls(coco_annotations)
     finally:
         chair_cls.get_annotations = orig_get_annotations
+
+    n_rules = install_compound_rules(evaluator)
+    print(f"[extraction] installed {n_rules} compound-noun rules "
+          f"(suppresses 'CD/DVD player'->PERSON, 'baby carriage'->PERSON, ...)")
 
     target_set = set(target_ids)
 
@@ -262,6 +272,85 @@ def build_chair_full_corpus(marine_root: str, coco_annotations: str, cache_path:
             print(f"[extraction] cached CHAIR evaluator to: {cache_path}")
 
     return evaluator
+
+
+
+# --------------------------------------------------------------------------- #
+# Compound-noun rules -- fixing CHAIR's false object mentions
+# --------------------------------------------------------------------------- #
+# CHAIR resolves objects by WORD-level synonym lookup, and its person-synonym list
+# literally contains "player" and "baby" (they are there for "a player kicks the
+# ball" / "a baby sleeps"). So a caption saying
+#
+#     "a laptop computer with a CD/DVD player"   -> player -> PERSON
+#     "a doll sitting in a baby carriage"        -> baby   -> PERSON
+#
+# invents a person that was never mentioned. Those phantom mentions then go through
+# the whole occlusion pipeline and are scored against ground truth, so they poison
+# the metrics at the source: no amount of fixing the masking can rescue an object
+# that should never have been extracted.
+#
+# CHAIR already has the machinery for exactly this -- `double_word_dict`, which is
+# how it stops "hot dog" firing DOG and "baby bird" firing PERSON. It simply lacks
+# the entries. So we EXTEND that dict rather than reimplement caption_to_words:
+# a bigram mapped to NON_OBJECT collapses to a token that is not in mscoco_objects,
+# and CHAIR's own filter then drops it. Nothing in eval_chair.py is modified.
+#
+# Crucially these rules are narrow. "baseball player" / "tennis player" still fire
+# PERSON, because they are people; only DEVICE players are suppressed. Likewise
+# "baby" is only suppressed in front of a thing a baby cannot be.
+
+NON_OBJECT = "__s10v2_nonobject__"
+
+# "<device> player" is an appliance, not a person.
+_MEDIA_PLAYER_PREFIXES = [
+    "cd", "dvd", "cd/dvd", "dvd/cd", "vcr", "dvd/vcr", "blu-ray", "bluray",
+    "record", "media", "music", "mp3", "mp4", "video", "disc", "cassette", "tape",
+]
+
+# "baby <thing>" where the thing is not something a baby can be.
+_BABY_NON_PERSON = [
+    "carriage", "stroller", "buggy", "pram", "bottle", "monitor", "crib", "cot",
+    "seat", "gate", "blanket", "wipe", "food", "formula", "powder", "shampoo",
+    "doll", "toy", "shower", "clothes", "shoe", "sock",
+]
+
+# CHAIR maps "computer" -> LAPTOP and "monitor" -> TV, so these compounds double-fire.
+_COMPUTER_COMPOUNDS = {
+    "computer mouse": "mouse",
+    "computer keyboard": "keyboard",
+    "computer monitor": "tv",
+    "computer screen": "tv",
+    "computer tower": NON_OBJECT,
+    "computer desk": "dining table",
+}
+
+_MISC_COMPOUNDS = {
+    "water pitcher": NON_OBJECT,   # "pitcher" is a person-synonym (baseball)
+    "orange juice": NON_OBJECT,    # "orange" the colour/flavour, not the fruit
+    "teddy": NON_OBJECT,           # bare "teddy" without "bear" is not a COCO object
+}
+
+
+def install_compound_rules(evaluator) -> int:
+    """Extend the evaluator's double_word_dict in place. Returns rules added.
+
+    MUST be called on every evaluator, including one restored from the pickle
+    cache -- a cached evaluator carries the OLD dict, so skipping this on the cache
+    path would silently reintroduce the phantom mentions on any run that hits a
+    warm cache.
+    """
+    d = evaluator.double_word_dict
+    before = len(d)
+
+    for p in _MEDIA_PLAYER_PREFIXES:
+        d[f"{p} player"] = NON_OBJECT
+    for x in _BABY_NON_PERSON:
+        d[f"baby {x}"] = NON_OBJECT
+    d.update(_COMPUTER_COMPOUNDS)
+    d.update(_MISC_COMPOUNDS)
+
+    return len(d) - before
 
 
 def coco_categories(evaluator) -> List[str]:

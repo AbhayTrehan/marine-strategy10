@@ -56,16 +56,21 @@ def draw_boxes(image: Image.Image, rows: List[Dict]) -> Image.Image:
 
     for row in rows:
         col = _colour_for(row)
-        box = row.get("box")
-        if box:
+        boxes = row.get("boxes") or ([row["box"]] if row.get("box") else [])
+        scores = row.get("inst_scores") or []
+        # EVERY instance the detector found -- all of them get masked, so all of
+        # them get drawn. If only one box appears for an object you can see twice
+        # in the picture, that is the bug you are looking for.
+        for j, box in enumerate(boxes):
             d.rectangle([box[0], box[1], box[2], box[3]], outline=col, width=w)
-            label = f"{row['word']} {row['s_det']:.2f}"
+            s = scores[j] if j < len(scores) else row["s_det"]
+            label = f"{row['word']} {s:.2f}"
             tx, ty = box[0] + 2, max(0, box[1] - 14)
             d.rectangle([tx - 2, ty - 1, tx + 7 * len(label), ty + 13], fill=col)
             d.text((tx, ty), label, fill="white")
         mb = row.get("mask_bbox")
         if mb:
-            # the region actually masked: snapped out to whole ViT patches
+            # bounding rect of the region actually masked (whole ViT patches)
             d.rectangle([mb[0], mb[1], mb[2], mb[3]], outline="#ffffff", width=1)
     return img
 
@@ -120,8 +125,9 @@ def _object_rows_html(rec: Dict, cfg) -> str:
           <td>
             <div class="obj">{_html.escape(row['word'])}</div>
             <div class="sub">said as &ldquo;{_html.escape(str(row.get('surface','')))}&rdquo;</div>
-            <div class="sub">s_det {row['s_det']:.3f} &middot; {row['n_patches']}/576 patches
-                ({100*row['patch_frac']:.1f}%)</div>
+            <div class="sub">s_det {row['s_det']:.3f} &middot;
+                {row.get('n_instances', 1)} instance{'s' if row.get('n_instances', 1) != 1 else ''}
+                masked &middot; {row['n_patches']}/576 patches ({100*row['patch_frac']:.1f}%)</div>
             <div>{_flags(row)}</div>
           </td>
           <td class="num">{_fmt(row['ell'], '{:.4f}')}<div class="sub">p={row['p']:.4f}</div></td>
@@ -143,6 +149,7 @@ def _probe_rows_html(rec: Dict) -> str:
         <tr>
           <td>{_html.escape(row['word'])}{present}</td>
           <td class="num">{row['s_det']:.3f}</td>
+          <td class="num">{row.get('n_instances', 1)}</td>
           <td class="num">{row['n_patches']}</td>
           <td class="num">{_fmt(row['ell'], '{:.4f}')}</td>
           <td class="num">{_fmt(row['ell_masked'], '{:.4f}')}</td>
@@ -206,7 +213,7 @@ def _image_card(rec: Dict, cfg, idx: int, total: int) -> str:
       <details>
         <summary>probe set (the null distribution) &mdash; {len(rec['probes'])} words</summary>
         <table class="probes">
-          <thead><tr><th>probe</th><th>s_det</th><th>patches</th>
+          <thead><tr><th>probe</th><th>s_det</th><th>inst</th><th>patches</th>
             <th>&#8467;(p)</th><th>&#8467;<sub>masked</sub>(p)</th><th>&Delta;(p)</th></tr></thead>
           <tbody>{_probe_rows_html(rec)}</tbody>
         </table>
@@ -311,6 +318,8 @@ def _summary_html(records: List[Dict], cfg) -> str:
             <tr><td>objects where enforcement failed</td>
                 <td>{'<b style="color:%s">%d</b>' % (C_HALLUC, not_enforced) if not_enforced else '0'}</td></tr>
             <tr><td>boxes falling outside the centre-crop</td><td>{outside}</td></tr>
+            <tr><td>mean instances masked | candidates</td><td>{_mean(obj_rows,'n_instances'):.2f}</td></tr>
+            <tr><td>mean instances masked | probes</td><td>{_mean(probe_rows,'n_instances'):.2f}</td></tr>
             <tr><td>mean masked patches | candidates</td><td>{_mean(obj_rows,'n_patches'):.0f} / 576</td></tr>
             <tr><td>mean masked patches | probes</td><td>{_mean(probe_rows,'n_patches'):.0f} / 576</td></tr>
             <tr><td>mean s_det | candidates</td><td>{_mean(obj_rows,'s_det'):.3f}</td></tr>

@@ -147,7 +147,11 @@ def format_summary(records: List[Dict], cfg) -> str:
     L.append(f"  LVLM                 : {cfg.model_path}   (greedy, max_new_tokens={cfg.max_new_tokens}, seed={cfg.seed})")
     L.append(f"  localiser            : {cfg.detector_path}")
     L.append(f"  images               : {n_total} from {cfg.question_file}")
+    L.append(f"  task prompt x        : {cfg.task_prompt!r}")
     L.append(f"  hyperparameters      : kappa={cfg.kappa}  K={cfg.K}  tau_low={cfg.tau_low}")
+    L.append(f"  R(w)                 : union of ALL detected instances "
+             f"(ratio={cfg.det_inst_ratio}, floor={cfg.det_inst_floor}, "
+             f"max={cfg.det_max_instances}, nms={cfg.det_nms_iou})")
     L.append(f"  localisation         : GroundingDINO for EVERY word (no attention fallback)")
     L.append(f"  masking              : patch-aligned + enforced on pixel_values"
              f"  (enforce={cfg.enforce_pixel_mask})")
@@ -222,6 +226,9 @@ def format_summary(records: List[Dict], cfg) -> str:
     L.append("      {:<26} {:>12.3f} {:>12.3f}".format("mean s_det",
                                                        _mean(obj_rows, "s_det"),
                                                        _mean(probe_rows, "s_det")))
+    L.append("      {:<26} {:>12.2f} {:>12.2f}".format("mean instances masked",
+                                                       _mean(obj_rows, "n_instances"),
+                                                       _mean(probe_rows, "n_instances")))
     L.append("      {:<26} {:>12.0f} {:>12.0f}".format("mean masked patches /576",
                                                        _mean(obj_rows, "n_patches"),
                                                        _mean(probe_rows, "n_patches")))

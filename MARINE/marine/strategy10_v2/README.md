@@ -23,7 +23,75 @@ the confidence drop, the decision, and the COCO ground-truth label.
 python ./scripts/eval_strategy10_v2_sanity.py --from_cache output/strategy10_v2/records.json --kappa 1.5
 ```
 
-## The two things that changed, and why
+## Fixes from the first real run
+
+Three bugs, all found in the screenshots of the first run.
+
+### A. `MASK NOT ENFORCED` was a false alarm
+
+`enforce_on_pixel_values` writes the fill in the tensor's dtype (**fp16** in a real
+run); `verify_enforced` was comparing it against an **fp32** reference. fp16 carries
+~4.9e-4 *relative* precision, and CLIP-normalised fills reach ±1.9, so the rounding
+gap hits ~7e-4 — straight through the 1e-4 tolerance. The mask was applied correctly;
+the *check* was wrong. Both sides now compare in the same dtype (residual is then
+exactly 0), and a genuine enforcement failure is still caught.
+
+### B. Only the *best* box was masked → real objects flagged
+
+`R(w)` used GroundingDINO's argmax box alone. With three people in the image we
+masked one, the LVLM still saw the other two, ℓ_masked barely moved, **Δ collapsed to
+0.0000**, and a REAL object was flagged HALLUCINATED. Reproduced and fixed:
+
+| | patches masked | Δ | decision (GT = REAL) |
+|---|---|---|---|
+| single best box (old) | 144/576 | **+0.0000** | **HALLUCINATED** ✗ |
+| all instances (now) | 288/576 | **+1.9930** | VERIFIED ✓ |
+
+`R(w)` is now the **union of every instance** the detector finds: argmax, plus every
+box scoring ≥ `max(det_inst_floor, det_inst_ratio · s_top(w))`, NMS'd, capped.
+
+> **This does not hand probes a bigger region.** A probe's top score sits far below
+> `det_inst_floor`, so the "plus" clause fires for nothing and it keeps exactly one
+> box — and so does a genuinely *hallucinated* candidate, which is the point:
+> hallucinated candidates and probes stay in the same null. Only a word the detector
+> actually finds, repeatedly and confidently, gets a bigger region — and for that
+> word, a bigger region is simply the correct region.
+
+### C. Extraction invented objects that were never mentioned
+
+CHAIR resolves objects by **word-level** synonym lookup, and its person-synonym list
+literally contains `player` and `baby`. So:
+
+```
+"A laptop computer with a CD/DVD player..."  ->  ['laptop', 'person']   <- phantom
+"A doll sitting in a baby carriage..."       ->  ['person', 'teddy bear'] <- phantom
+```
+
+Those phantom mentions then ran the whole occlusion pipeline and were scored against
+ground truth — poisoning the metrics *at the source*, where no amount of fixing the
+masking could rescue them.
+
+CHAIR already has the machinery for exactly this: `double_word_dict`, which is how it
+stops `hot dog` firing DOG and `baby bird` firing PERSON. It just lacked the entries.
+We **extend that dict** (48 rules) rather than reimplement `caption_to_words`;
+`eval/eval_chair.py` is untouched. After:
+
+```
+"A laptop computer with a CD/DVD player..."  ->  ['laptop']
+"A doll sitting in a baby carriage..."       ->  ['teddy bear']
+```
+
+The rules are deliberately narrow — `baseball player`, `tennis player`, `soccer
+player` and a bare `baby` **still** fire PERSON, because those are people. Only
+*device* players and `baby <thing-a-baby-cannot-be>` are suppressed.
+
+**Stage 1 prompt.** Also, per your suggestion, the default task prompt `x` is now
+`"List all the objects visible in this image."` rather than a caption. Free-form
+captions are what produce the compound noun phrases that collide with CHAIR's
+word-level table. The spec (Sec 2) gives captioning as an *example* of `x`, not a
+constraint. Revert with `--task_prompt "Generate a short caption of the image."`
+
+## The two things that changed earlier, and why
 
 ### 1. GroundingDINO localises *every* word. There is no attention fallback.
 
@@ -116,6 +184,10 @@ come straight from the repo's own `eval/eval_chair.py` — so REAL/HALLUCINATED 
 | `K` | `--K` | `20` | probes per image |
 | `τ_low` | `--tau_low` | `0.15` | probes must be *believed absent*. **Not** the old 0.05 — GroundingDINO's scores live on a different scale to OWL-ViT's. The report prints the s_det distribution so this can be re-tuned against real data. |
 | — | `--det_batch_size` | `8` | same image, N single-phrase prompts |
+| — | `--det_inst_ratio` | `0.5` | keep instance boxes scoring ≥ ratio · this word's top score |
+| — | `--det_inst_floor` | `0.25` | …but never below this absolute score — this is what keeps probes at one box |
+| — | `--det_max_instances` | `10` | cap, applied identically to both groups |
+| — | `--task_prompt` | *list objects* | Stage 1 prompt `x`; pass a caption prompt to revert |
 | — | `--no_enforce_pixel_mask` | off | **diagnostic**: disable the `pixel_values` enforcement to see what the interpolation leak was worth |
 
 ## Read the report in this order
@@ -124,9 +196,10 @@ come straight from the repo's own `eval/eval_chair.py` — so REAL/HALLUCINATED 
    reach. If it's ≈ 0.50, no κ helps and the problem is upstream of calibration.
 2. **Masking integrity** — residual leak, enforcement failures, boxes falling outside
    the centre-crop (those get *nothing* masked, so Δ = 0 by construction).
-3. **Candidate-vs-probe symmetry** — mean masked-patch count per group. If these
-   diverge, Δ is not measuring the same thing for the two groups and the null is only
-   nominally symmetric, whatever the headline numbers say.
+3. **Candidate-vs-probe symmetry** — mean *instances* and mean masked-patch count per
+   group. Real objects should mask more than probes (they have more instances, and
+   that is the signal); but if *hallucinated* candidates are also masking far more
+   than probes, the null is no longer modelling them and the calibration is broken.
 4. **Probe contamination** — GT-present probes inflate μ̂.
 5. Only then, the catch / false-flag rates.
 

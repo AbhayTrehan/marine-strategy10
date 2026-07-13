@@ -69,11 +69,20 @@ def parse_args():
     p.add_argument("--cooccur_file", type=str, default=d.cooccur_file)
     p.add_argument("--num_images", type=int, default=d.num_images)
 
+    p.add_argument("--task_prompt", type=str, default=d.task_prompt,
+                   help="Stage 1 task prompt x. Default lists objects; pass "
+                        "\"Generate a short caption of the image.\" for captioning.")
     p.add_argument("--max_new_tokens", type=int, default=d.max_new_tokens)
     p.add_argument("--seed", type=int, default=d.seed)
 
     p.add_argument("--det_prompt_template", type=str, default=d.det_prompt_template)
     p.add_argument("--det_batch_size", type=int, default=d.det_batch_size)
+    p.add_argument("--det_inst_ratio", type=float, default=d.det_inst_ratio,
+                   help="keep instance boxes scoring >= ratio * this word's top score")
+    p.add_argument("--det_inst_floor", type=float, default=d.det_inst_floor,
+                   help="...but never below this absolute score (keeps probes at 1 box)")
+    p.add_argument("--det_max_instances", type=int, default=d.det_max_instances)
+    p.add_argument("--det_nms_iou", type=float, default=d.det_nms_iou)
 
     p.add_argument("--K", type=int, default=d.K)
     p.add_argument("--tau_low", type=float, default=d.tau_low)
@@ -100,8 +109,10 @@ def parse_args():
         image_folder=a.image_folder, coco_annotations=a.coco_annotations,
         chair_cache=a.chair_cache, question_file=a.question_file,
         cooccur_file=a.cooccur_file, num_images=a.num_images,
-        max_new_tokens=a.max_new_tokens, seed=a.seed,
+        task_prompt=a.task_prompt, max_new_tokens=a.max_new_tokens, seed=a.seed,
         det_prompt_template=a.det_prompt_template, det_batch_size=a.det_batch_size,
+        det_inst_ratio=a.det_inst_ratio, det_inst_floor=a.det_inst_floor,
+        det_max_instances=a.det_max_instances, det_nms_iou=a.det_nms_iou,
         K=a.K, tau_low=a.tau_low, cooccur_bias=a.cooccur_bias,
         kappa=a.kappa,
         kappa_sweep=[float(x) for x in a.kappa_sweep.split(",") if x.strip()],
@@ -128,7 +139,7 @@ def write_csv(records, path):
         w = csv.writer(f)
         w.writerow([
             "image_file", "image_id", "role", "word", "surface", "s_det",
-            "n_patches", "patch_frac", "outside_crop", "leak_max",
+            "n_instances", "n_patches", "patch_frac", "outside_crop", "leak_max",
             "ell", "ell_masked", "delta", "conf_drop_pct",
             "mu_hat", "sigma_hat", "tau", "decision", "gt_label", "outcome",
         ])
@@ -140,7 +151,7 @@ def write_csv(records, path):
                     w.writerow([
                         rec["image_file"], rec["image_id"], role, r["word"],
                         r.get("surface", ""), f"{r['s_det']:.4f}",
-                        r["n_patches"], f"{r['patch_frac']:.4f}",
+                        r.get("n_instances", 1), r["n_patches"], f"{r['patch_frac']:.4f}",
                         int(bool(r.get("outside_crop"))), f"{r.get('leak_max', 0.0):.3e}",
                         f"{r['ell']:.5f}", f"{r['ell_masked']:.5f}",
                         f"{r['delta']:.5f}", f"{r['conf_drop_pct']:.3f}",
@@ -200,12 +211,18 @@ def main():
     detector = GroundingDinoDetector(
         cfg.detector_path, cfg.device, cfg.detector_fp16,
         prompt_template=cfg.det_prompt_template, batch_size=cfg.det_batch_size,
+        inst_ratio=cfg.det_inst_ratio, inst_floor=cfg.det_inst_floor,
+        max_instances=cfg.det_max_instances, nms_iou=cfg.det_nms_iou,
     )
 
     pipe = Strategy10V2Pipeline(
         cfg, model, tokenizer, processor, detector, evaluator, vocabulary, cooccur, grid
     )
+    print(f"[setup] task prompt x = {cfg.task_prompt!r}")
     print(f"[setup] c_elicit = {pipe.elicit_prefix!r}")
+    print(f"[setup] R(w) = union of ALL detected instances "
+          f"(ratio={cfg.det_inst_ratio}, floor={cfg.det_inst_floor}, "
+          f"max={cfg.det_max_instances})")
     print(f"[setup] mask: patch-aligned; pixel_values enforcement = {cfg.enforce_pixel_mask}")
     print()
 

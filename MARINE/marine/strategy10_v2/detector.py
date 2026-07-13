@@ -18,6 +18,32 @@ for -- "a region R(w) PURPORTING to support w visually" -- and for an absent
 probe it is precisely the honest null: "where would this object be, if it were
 here?" One detector, one procedure, both groups.
 
+ALL INSTANCES, NOT JUST THE BEST ONE
+------------------------------------
+R(w) is "the region purporting to support w". If the image contains three people,
+all three support the word "person" -- masking only GroundingDINO's single
+best-scoring box leaves the other two in plain sight, the LVLM still sees people,
+l_masked barely moves, Delta collapses to ~0, and a perfectly REAL object gets
+flagged as hallucinated. So R(w) is the UNION of every instance the detector
+finds for w.
+
+Which boxes count as "an instance" has to be decided by a rule that is applied
+IDENTICALLY to candidates and probes, or the null stops being comparable. The rule:
+
+    always take the argmax box                        (so every word, including an
+                                                       absent probe, always has a
+                                                       region -- no region, no Delta)
+    plus every box scoring >= max(inst_floor, inst_ratio * s_top(w))
+    then NMS, then cap at max_instances
+
+Note what this does NOT do: it does not give probes a bigger region. A probe's top
+score sits far below inst_floor, so the "plus" clause fires for nothing and the
+probe gets exactly one box -- as before. The same is true of a genuinely
+hallucinated candidate, which is the point: hallucinated candidates and probes go
+through the same procedure and land in the same null. Only a word the detector
+actually finds, repeatedly and confidently, gets a bigger region -- and for that
+word, a bigger region is simply the correct region.
+
 ONE PHRASE PER FORWARD PASS
 ---------------------------
 GroundingDINO's text encoder is a BERT that attends across the whole prompt. If
@@ -38,11 +64,17 @@ import torch
 class GroundingDinoDetector:
     def __init__(self, model_path: str = "IDEA-Research/grounding-dino-base",
                  device: str = "cuda", fp16: bool = False,
-                 prompt_template: str = "{word}.", batch_size: int = 8):
+                 prompt_template: str = "{word}.", batch_size: int = 8,
+                 inst_ratio: float = 0.5, inst_floor: float = 0.25,
+                 max_instances: int = 10, nms_iou: float = 0.5):
         self.device = device
         self.dtype = torch.float16 if fp16 else torch.float32
         self.prompt_template = prompt_template
         self.batch_size = max(1, int(batch_size))
+        self.inst_ratio = float(inst_ratio)
+        self.inst_floor = float(inst_floor)
+        self.max_instances = max(1, int(max_instances))
+        self.nms_iou = float(nms_iou)
 
         self.processor = self._load_processor(model_path)
         self.model = self._load_model(model_path)
@@ -107,17 +139,50 @@ class GroundingDinoDetector:
             y0, y1 = max(0.0, y0 - 1.0), min(float(height), y0 + 1.0)
         return [x0, y0, x1, y1]
 
+    @staticmethod
+    def _iou(a: Sequence[float], b: Sequence[float]) -> float:
+        ix0, iy0 = max(a[0], b[0]), max(a[1], b[1])
+        ix1, iy1 = min(a[2], b[2]), min(a[3], b[3])
+        iw, ih = max(0.0, ix1 - ix0), max(0.0, iy1 - iy0)
+        inter = iw * ih
+        if inter <= 0:
+            return 0.0
+        area_a = max(0.0, a[2] - a[0]) * max(0.0, a[3] - a[1])
+        area_b = max(0.0, b[2] - b[0]) * max(0.0, b[3] - b[1])
+        union = area_a + area_b - inter
+        return inter / union if union > 0 else 0.0
+
+    def _select_instances(self, scores: torch.Tensor, boxes_xyxy: List[List[float]]):
+        """argmax + every box clearing max(floor, ratio*top), NMS'd and capped.
+
+        The argmax is kept unconditionally so that EVERY word -- including an
+        absent probe, whose scores all sit near zero -- always has a region. A word
+        with no region has no Delta, and a probe with no Delta is not in the null.
+        """
+        top = float(scores.max())
+        cut = max(self.inst_floor, self.inst_ratio * top)
+
+        order = torch.argsort(scores, descending=True).tolist()
+        best = order[0]
+        cands = [best] + [i for i in order[1:] if float(scores[i]) >= cut]
+
+        kept: List[int] = []
+        for i in cands:
+            if all(self._iou(boxes_xyxy[i], boxes_xyxy[j]) < self.nms_iou for j in kept):
+                kept.append(i)
+            if len(kept) >= self.max_instances:
+                break
+        return kept, top
+
     @torch.inference_mode()
     def score_words(self, image, words: Sequence[str]) -> Dict[str, Dict]:
-        """{word: {"score": float, "box": [x0,y0,x1,y1]}} for EVERY word.
+        """{word: {"score", "boxes", "scores", "n_instances"}} for EVERY word.
 
-        The box is GroundingDINO's single highest-scoring query for that phrase,
-        taken with NO confidence threshold. A threshold would return nothing for
-        the probes (they are absent by construction), and every probe still needs
-        an R(p) in order to have a Delta at all. Taking the argmax box
-        unconditionally is what keeps candidates and probes on one identical
-        procedure -- and, for an absent probe, the argmax box is exactly the
-        "purported" region the null is supposed to model.
+        `score` is the top score for the phrase; `boxes` is EVERY instance the
+        detector found (see _select_instances). R(w) downstream is the union of
+        those boxes -- masking only the best one leaves the other instances of a
+        multi-instance object visible, which is how a REAL object ends up with
+        Delta ~ 0 and gets flagged.
         """
         width, height = image.size
         out: Dict[str, Dict] = {}
@@ -161,15 +226,17 @@ class GroundingDinoDetector:
 
             probs = probs.masked_fill(~valid[:, None, :], 0.0)
             query_scores = probs.max(dim=-1).values            # [B, n_query]
-            best = query_scores.argmax(dim=1)                  # [B]
 
             for i, word in enumerate(chunk):
-                k = int(best[i])
+                sc = query_scores[i].float().cpu()             # [n_query]
+                bx = [self._cxcywh_to_xyxy(b, width, height)
+                      for b in outputs.pred_boxes[i].float().cpu()]
+                kept, top = self._select_instances(sc, bx)
                 out[word] = {
-                    "score": float(query_scores[i, k]),
-                    "box": self._cxcywh_to_xyxy(
-                        outputs.pred_boxes[i, k].float(), width, height
-                    ),
+                    "score": top,
+                    "scores": [float(sc[k]) for k in kept],
+                    "boxes": [bx[k] for k in kept],
+                    "n_instances": len(kept),
                 }
 
         return out

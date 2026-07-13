@@ -26,7 +26,7 @@ import torch
 from PIL import Image
 
 from . import attribution, calibration, extraction, masking, probes, prompts, scoring
-from .config import TASK_PROMPT
+
 
 
 class Strategy10V2Pipeline:
@@ -48,7 +48,7 @@ class Strategy10V2Pipeline:
         )
         self.image_processor = processor.image_processor
         self.elicit_prefix = prompts.elicitation_prefix()
-        self.task_prompt = prompts.task_prompt(TASK_PROMPT)
+        self.task_prompt = prompts.task_prompt(cfg.task_prompt)
 
     # ------------------------------------------------------------------ #
     # Stage 1
@@ -78,16 +78,26 @@ class Strategy10V2Pipeline:
         W, H = image.size
         entry = det.get(word, {})
         s_det = float(entry.get("score", 0.0))
-        box = entry.get("box")
+        boxes = list(entry.get("boxes") or [])
+        inst_scores = list(entry.get("scores") or [])
 
-        # R(w): every ViT patch GroundingDINO's box touches, in full.
-        if box is None:
-            patches, geo = [], {"outside_crop": True, "clipped_by_crop": False,
-                                "n_patches": 0, "patch_frac": 0.0}
-        else:
-            patches, geo = attribution.box_to_patches(
-                box, self.grid, W, H, self.image_processor
-            )
+        # R(w) = the UNION of every instance of w the detector found. Masking only
+        # the best box would leave the other instances of a multi-instance object
+        # (three people, two umbrellas) fully visible to the LVLM, l_masked would
+        # barely move, and a REAL object would collapse to Delta ~ 0 and be flagged.
+        patches, any_clipped, all_outside = set(), False, True
+        for b in boxes:
+            p, g = attribution.box_to_patches(b, self.grid, W, H, self.image_processor)
+            patches.update(p)
+            any_clipped |= bool(g["clipped_by_crop"])
+            all_outside &= bool(g["outside_crop"])
+        patches = sorted(patches)
+        geo = {
+            "outside_crop": bool(all_outside) if boxes else True,
+            "clipped_by_crop": any_clipped,
+            "n_patches": len(patches),
+            "patch_frac": len(patches) / float(self.grid * self.grid),
+        }
 
         mask_boxes = attribution.patches_to_orig_boxes(
             patches, self.grid, W, H, self.image_processor
@@ -113,7 +123,9 @@ class Strategy10V2Pipeline:
         return {
             "word": word,
             "s_det": s_det,
-            "box": box,
+            "boxes": boxes,
+            "inst_scores": inst_scores,
+            "n_instances": len(boxes),
             "mask_bbox": attribution.patches_bounding_box(
                 patches, self.grid, W, H, self.image_processor
             ),

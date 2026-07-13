@@ -89,14 +89,22 @@ class OcclusionScorer:
         leak = None
         if mask_patches is not None and len(mask_patches) and fill_norm is not None:
             if measure:
+                # Pre-enforcement leak: measured in fp32 so the number is a truthful
+                # picture of the residual object signal, not of fp16 quantisation.
                 leak = masking.measure_leak(
                     inputs["pixel_values"].float(), mask_patches, self.grid, fill_norm
                 )
             inputs["pixel_values"] = masking.enforce_on_pixel_values(
                 inputs["pixel_values"], mask_patches, self.grid, fill_norm
             )
+            # Verify in the tensor's OWN dtype. enforce_on_pixel_values writes the
+            # fill cast to pixel_values.dtype (fp16 in a normal run); comparing that
+            # back against an fp32 reference sees the ~1e-3 fp16 rounding gap, blows
+            # through any sane tolerance, and reports "MASK NOT ENFORCED" on a mask
+            # that was in fact applied perfectly. Same dtype on both sides -> the
+            # residual is exactly zero, and a real failure still shows up.
             enforced_ok = masking.verify_enforced(
-                inputs["pixel_values"].float(), mask_patches, self.grid, fill_norm
+                inputs["pixel_values"], mask_patches, self.grid, fill_norm
             )
         else:
             enforced_ok = True

@@ -38,7 +38,16 @@ VICUNA_V1_SYSTEM = (
     "The assistant gives helpful, detailed, and polite answers to the user's questions."
 )
 
-TASK_PROMPT = "Generate a short caption of the image."
+# Stage 1 task prompt x. The spec (Sec 2) allows any task prompt -- it gives
+# "Generate a short caption of the image." and "a VQA question" as EXAMPLES, not as
+# a constraint -- and an object-listing prompt is a far cleaner source of mentions
+# for a verification sanity check: free-form captions produce compound noun phrases
+# ("a CD/DVD player", "a baby carriage") whose head nouns collide with CHAIR's
+# word-level synonym table and invent objects nobody mentioned. Listing asks the
+# model for the object names directly.
+# Use --task_prompt to switch back to captioning.
+TASK_PROMPT = "List all the objects visible in this image."
+CAPTION_PROMPT = "Generate a short caption of the image."
 
 # The fixed, task-agnostic elicitation template c_elicit (Sec 3.1). Unchanged.
 ELICIT_QUESTION = "What objects are visible in this image?"
@@ -65,6 +74,7 @@ class Strategy10V2Config:
     num_images: int = 50
 
     # ---- Stage 1 generation -------------------------------------------------
+    task_prompt: str = TASK_PROMPT
     max_new_tokens: int = 64
     seed: int = 242
 
@@ -75,6 +85,18 @@ class Strategy10V2Config:
     # method: the identical string form is used for candidates and probes alike.
     det_prompt_template: str = "{word}."
     det_batch_size: int = 8   # same image repeated; ONE phrase per batch element
+
+    # R(w) is the UNION of every instance of w that the detector finds, not just its
+    # best box: with three people in the image, masking one leaves two visible, the
+    # LVLM still sees people, and a REAL object collapses to Delta ~ 0 and gets
+    # flagged. See detector._select_instances for why this does NOT hand probes a
+    # bigger region (their scores sit far below det_inst_floor, so they keep getting
+    # exactly one box -- as does a genuinely hallucinated candidate, which is the
+    # point: hallucinated candidates and probes stay in the same null).
+    det_inst_ratio: float = 0.5      # keep boxes scoring >= ratio * this word's top score
+    det_inst_floor: float = 0.25     # ...but never below this absolute score
+    det_max_instances: int = 10      # cap, applied identically to both groups
+    det_nms_iou: float = 0.5         # GD emits ~900 queries; NMS dedupes them
 
     # ---- Sec 4.1: probe sampling -------------------------------------------
     K: int = 20
