@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Strategy 10 (v2) -- sanity check on 50 COCO images.
 #   GroundingDINO localises -> SAM segments -> patch-aligned mask, enforced pre-ViT.
-#   Scores: delta (Eq. 7, the spec) AND delta_lo (existence log-odds), both calibrated
-#   against the same probes. AUROC is reported for each, plus the s_det baseline.
+#   Scores: deletion (delta, delta_lo) AND insertion (delta_ins, delta_lo_ins) AND
+#   area-controlled (delta_ctrl, delta_lo_ctrl) -- all six, calibrated against the
+#   same probes. AUROC is reported for each, plus the s_det baseline.
 # Run from the MARINE repo root:  bash scripts/run_strategy10_v2_sanity.sh
 set -e
 
@@ -16,7 +17,7 @@ python ./scripts/eval_strategy10_v2_sanity.py \
     --detector_path    IDEA-Research/grounding-dino-base \
     --seg_backend      sam \
     --sam_path         facebook/sam-vit-base \
-    --scores           delta,delta_lo \
+    --scores           delta,delta_lo,delta_ins,delta_lo_ins,delta_ctrl,delta_lo_ctrl \
     --primary_score    delta \
     --num_images       50 \
     --kappa            1.0 \
@@ -30,8 +31,10 @@ echo
 echo "==> open $OUTPUT_DIR/report.html"
 echo "==> the AUROC table is the thing to read first."
 echo
-echo "Variants worth running once the baseline is in:"
-echo "  --control_mask                 # cancels the masked-AREA confound (+2 fwd/word)"
+echo "control_mask and insertion are ON by default now. Other variants worth trying:"
+echo "  --no_insertion                 # isolate what insertion alone bought you"
+echo "  --no_control_mask              # isolate what the control mask alone bought you"
 echo "  --seg_backend box              # what SAM bought you (A/B)"
-echo "  --primary_score delta_lo       # decide on existence instead of likelihood"
+echo "  --primary_score delta_ins      # decide on sufficiency instead of deletion"
+echo "  --sigma_shrink 0.5             # shrink tau's noise at K=20"
 echo "  --probe_vocab ram              # richer null (probes need no ground truth)"

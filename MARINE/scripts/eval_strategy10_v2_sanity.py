@@ -108,10 +108,18 @@ def parse_args():
                    help="which score the verify/flag DECISION uses. Default 'delta' "
                         "keeps the headline numbers on the spec's own score; every "
                         "other score is still measured and its AUROC reported.")
-    p.add_argument("--control_mask", action="store_true",
-                   help="also mask an equally-large, equally-shaped region ELSEWHERE, "
-                        "and score the difference. Cancels the 'a big mask makes "
-                        "everything less likely' confound. +2 forwards per word.")
+    p.add_argument("--no_control_mask", action="store_true",
+                   help="disable the control mask (an equally-large, equally-shaped "
+                        "region masked ELSEWHERE). It cancels the 'a big mask makes "
+                        "everything less likely' confound; on by default.")
+    p.add_argument("--no_insertion", action="store_true",
+                   help="disable the SUFFICIENCY test (mask everything EXCEPT R(w)). "
+                        "Deletion alone cannot detect a hallucination driven by scene "
+                        "context, because deleting R(w) leaves the scene intact. "
+                        "On by default.")
+    p.add_argument("--sigma_shrink", type=float, default=d.sigma_shrink,
+                   help="shrink per-image sigma_hat toward the pooled sigma (0..1). "
+                        "0 = Eq. (8) exactly.")
 
     # ---- vocabulary ----
     p.add_argument("--ram_vocab_file", type=str, default=d.ram_vocab_file)
@@ -149,7 +157,9 @@ def parse_args():
         seg_backend=a.seg_backend, sam_path=a.sam_path,
         mask_dilate_patches=a.mask_dilate_patches,
         scores=[x.strip() for x in a.scores.split(",") if x.strip()],
-        primary_score=a.primary_score, control_mask=a.control_mask,
+        primary_score=a.primary_score,
+        control_mask=not a.no_control_mask, insertion=not a.no_insertion,
+        sigma_shrink=a.sigma_shrink,
         ram_vocab_file=a.ram_vocab_file,
         extract_non_coco=not a.no_extract_non_coco,
         probe_vocab=a.probe_vocab, dup_iou=a.dup_iou,
@@ -176,8 +186,8 @@ def write_csv(records, path):
         w.writerow([
             "image_file", "image_id", "role", "word", "surface", "s_det",
             "n_instances", "n_patches", "patch_frac", "outside_crop", "leak_max",
-            "seg", "ell", "ell_masked", "delta", "delta_lo", "delta_ctrl",
-            "delta_lo_ctrl", "conf_drop_pct",
+            "seg", "ell", "ell_masked", "delta", "delta_lo", "delta_ins",
+            "delta_lo_ins", "delta_ctrl", "delta_lo_ctrl", "conf_drop_pct",
             "mu_hat", "sigma_hat", "tau", "decision", "gt_label", "outcome",
         ])
         for rec in records:
@@ -194,7 +204,8 @@ def write_csv(records, path):
                         f"{r['ell']:.5f}", f"{r['ell_masked']:.5f}",
                         *[("" if r.get("scores", {}).get(k) is None
                            else f"{r['scores'][k]:.5f}")
-                          for k in ("delta", "delta_lo", "delta_ctrl", "delta_lo_ctrl")],
+                          for k in ("delta", "delta_lo", "delta_ins", "delta_lo_ins",
+                                    "delta_ctrl", "delta_lo_ctrl")],
                         f"{r['conf_drop_pct']:.3f}",
                         f"{rec['mu_hat']:.5f}", f"{rec['sigma_hat']:.5f}", f"{rec['tau']:.5f}",
                         r.get("decision", ""),
@@ -278,9 +289,9 @@ def main():
     )
     print(f"[setup] task prompt x = {cfg.task_prompt!r}")
     print(f"[setup] c_elicit = {pipe.elicit_prefix!r}")
-    print(f"[setup] scores    = {cfg.scores} "
-          f"{'+ control variants' if cfg.control_mask else ''}  "
-          f"(decision on: {cfg.primary_score})")
+    print(f"[setup] scores    = deletion{' + insertion' if cfg.insertion else ''}"
+          f"{' + control' if cfg.control_mask else ''}, on the likelihood and "
+          f"existence heads   (decision on: {cfg.primary_score})")
     print(f"[setup] R(w) = union of ALL detected instances "
           f"(ratio={cfg.det_inst_ratio}, floor={cfg.det_inst_floor}, "
           f"max={cfg.det_max_instances})")
@@ -308,6 +319,17 @@ def main():
         print(report.format_image_block(rec, i, len(questions)), flush=True)
 
     elapsed = time.time() - t0
+
+    if cfg.sigma_shrink > 0:
+        from marine.strategy10_v2.calibration import apply_sigma_shrinkage
+        from marine.strategy10_v2.pipeline import SCORES
+        apply_sigma_shrinkage(records, SCORES, cfg.sigma_shrink)
+        for r in records:
+            if not r.get("skipped") and cfg.primary_score in (r.get("null") or {}):
+                n = r["null"][cfg.primary_score]
+                r["sigma_hat"], r["tau"] = n["sigma"], n["mu"] + cfg.kappa * n["sigma"]
+        print(f"[calibration] shrank sigma_hat toward the pooled sigma "
+              f"(lambda={cfg.sigma_shrink})")
 
     # ---- report ------------------------------------------------------------
     summary = report.format_summary(records, cfg)
