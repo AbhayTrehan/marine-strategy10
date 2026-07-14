@@ -130,9 +130,45 @@ class Strategy10V2Config:
     #   delta_lo      : existence log-odds -- cancels the word's unigram prior
     #   delta_ctrl    : area-controlled  (needs --control_mask)
     #   delta_lo_ctrl : both             (needs --control_mask)
-    scores: List[str] = field(default_factory=lambda: ["delta", "delta_lo"])
-    primary_score: str = "delta"       # which score the verify/flag DECISION uses
-    control_mask: bool = False         # --control_mask: mask an equal region elsewhere
+    #   delta_ins     : SUFFICIENCY -- mask everything EXCEPT R(w)
+    #   delta_lo_ins  : the same, on the existence head
+    #
+    # WHY delta ALONE WAS NEVER GOING TO BE ENOUGH
+    # -------------------------------------------
+    # delta is a DELETION (necessity) test: remove R(w), see if belief in w drops.
+    # But the spec itself defines a hallucination as "a mention driven by language
+    # priors or SCENE-LEVEL PLAUSIBILITY rather than the pixels". Deletion cannot see
+    # that: deleting a hallucinated object's region leaves the entire scene that
+    # invented it untouched, so the model keeps believing and delta ~ 0. You learn
+    # that the model did not need those pixels; you never learn that it was leaning on
+    # context, because you never removed the context.
+    #
+    # INSERTION does. Mask everything EXCEPT R(w) and the model can see ONLY the
+    # region that allegedly supports w:
+    #     real          -> its pixels are still there  -> belief survives
+    #     hallucinated  -> nothing in R(w), AND the context is gone -> belief collapses
+    #
+    # Also note: delta_ctrl and delta_ins are contrasts between two MASKED conditions
+    # and never reference l_full. That is not incidental. l_full is precisely where
+    # candidates and probes stop being exchangeable -- candidates are words the model
+    # CHOSE to say (l_full high by construction), probes are words it did not (l_full
+    # at the floor, no room to fall). Any score shaped l_full - l_masked inherits that
+    # asymmetry; a masked-vs-masked contrast cancels it, along with the word's unigram
+    # prior and the masked-AREA effect.
+    scores: List[str] = field(default_factory=lambda: [
+        "delta", "delta_lo", "delta_ins", "delta_lo_ins",
+        "delta_ctrl", "delta_lo_ctrl",
+    ])
+    primary_score: str = "delta"       # DECISION score. Default = the spec's own, so the
+                                       # headline stays the spec's number; every other
+                                       # score is measured alongside and its AUROC printed.
+    control_mask: bool = True          # mask an equal-size, equal-shape region ELSEWHERE
+    insertion: bool = True             # mask everything EXCEPT R(w)  (sufficiency)
+
+    # sigma_hat from K=20 probes has ~16% relative standard error, so tau is itself a
+    # noisy random variable. Shrink the per-image sigma_hat toward the pooled sigma
+    # across images (empirical-Bayes / James-Stein). 0.0 = pure Eq. (8), spec-faithful.
+    sigma_shrink: float = 0.0
 
     # ---- vocabulary ----------------------------------------------------------
     # Ground truth is COCO-80 and nothing else, so only COCO objects can be SCORED.

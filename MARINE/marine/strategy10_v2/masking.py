@@ -232,3 +232,40 @@ def sample_control_patches(patches, grid: int, rng, max_tries: int = 200):
         if best_ov is None or ov < best_ov:
             best, best_ov = cand, ov
     return sorted(best) if best else []
+
+
+def complement_patches(patches, grid: int):
+    """Every patch EXCEPT R(w). The insertion / sufficiency counterfactual.
+
+    WHY DELETION ALONE IS NOT ENOUGH
+    --------------------------------
+    Sec 3.4 says a hallucination is "a mention driven by language priors or
+    SCENE-LEVEL PLAUSIBILITY rather than the pixels of I". Deletion cannot detect
+    that. When you delete a hallucinated object's region, the scene that invented it
+    -- the rain, the crowd, the desk, the co-occurring objects -- is all still there.
+    The model keeps believing, Delta ~ 0, and you have learned only that the model
+    did not need those particular pixels. You have NOT learned that it was leaning on
+    context, because you never took the context away.
+
+    Insertion does exactly that: mask everything EXCEPT R(w), so the ONLY thing the
+    model can see is the region that allegedly supports w.
+
+        REAL object        -> its pixels are still there   -> belief survives  -> l_keep HIGH
+        HALLUCINATED object-> R(w) holds nothing, and the context that invented
+                              it is now gone as well       -> belief collapses -> l_keep LOW
+
+    The contrast that follows is the score:
+
+        G(w) = l_keep(w) - l_del(w)
+             = "is the evidence INSIDE this region, or in the scene around it?"
+
+    Note what G does NOT contain: l_full. That matters more than it looks. l_full is
+    where candidates and probes stop being exchangeable -- candidates are words the
+    model CHOSE to say (so l_full is high by construction), probes are words it did
+    not (so l_full sits at the floor, with no room to fall). Any score of the form
+    l_full - l_masked inherits that asymmetry. A contrast between two MASKED
+    conditions cancels it, along with the word's unigram prior and the masked-area
+    effect.
+    """
+    r = set(patches)
+    return [p for p in range(grid * grid) if p not in r]

@@ -340,12 +340,18 @@ def _auroc(pos: List[float], neg: List[float]) -> float:
 # --------------------------------------------------------------------------- #
 
 SCORE_LABELS = {
-    "s_det": "s_det (GroundingDINO alone)   <- BASELINE TO BEAT",
-    "delta": "delta        = l - l_masked          [Eq. 7, the spec]",
-    "delta_lo": "delta_lo     = LO - LO_masked        [existence log-odds]",
-    "delta_ctrl": "delta_ctrl   = l_ctrl - l_masked     [area-controlled]",
-    "delta_lo_ctrl": "delta_lo_ctrl= LO_ctrl - LO_masked   [both]",
+    "s_det": "s_det (GroundingDINO alone)              <- BASELINE TO BEAT",
+    "delta": "delta         = l_full - l_del      [Eq. 7, the spec: DELETION]",
+    "delta_lo": "delta_lo      = LO_full - LO_del    [deletion, existence head]",
+    "delta_ins": "delta_ins     = l_keep - l_del      [INSERTION / sufficiency]",
+    "delta_lo_ins": "delta_lo_ins  = LO_keep - LO_del    [insertion, existence head]",
+    "delta_ctrl": "delta_ctrl    = l_ctrl - l_del      [area-controlled deletion]",
+    "delta_lo_ctrl": "delta_lo_ctrl = LO_ctrl - LO_del    [area-controlled, existence]",
 }
+
+# Scores that never reference l_full, and therefore cancel the candidate-vs-probe
+# selection asymmetry (candidates are words the model CHOSE to say; probes are not).
+MASKED_CONTRASTS = {"delta_ins", "delta_lo_ins", "delta_ctrl", "delta_lo_ctrl"}
 
 
 def scored_objects(records):
@@ -372,7 +378,8 @@ def auroc_table(records) -> List[Dict]:
     hall = [o for o in objs if o["gt_label"] == "HALLUCINATED"]
 
     rows = []
-    for key in ["s_det", "delta", "delta_lo", "delta_ctrl", "delta_lo_ctrl"]:
+    for key in ["s_det", "delta", "delta_lo", "delta_ins", "delta_lo_ins",
+                "delta_ctrl", "delta_lo_ctrl"]:
         def get(o):
             return o["s_det"] if key == "s_det" else o.get("scores", {}).get(key)
 
@@ -404,14 +411,20 @@ def format_auroc_table(records) -> str:
         L.append("  (no scored objects)")
         return "\n".join(L)
 
-    L.append("  {:<50} {:>7}  {:>11} {:>11}".format(
+    L.append("  {:<58} {:>7}  {:>11} {:>11}".format(
         "score", "AUROC", "mean|REAL", "mean|HALL"))
-    L.append("  " + "-" * 84)
+    L.append("  " + "-" * 92)
     best = max(rows, key=lambda r: r["auroc"])
     for r in rows:
         star = "  <=== best" if r is best else ""
-        L.append("  {:<50} {:>7.3f}  {:>+11.3f} {:>+11.3f}{}".format(
+        L.append("  {:<58} {:>7.3f}  {:>+11.3f} {:>+11.3f}{}".format(
             r["label"], r["auroc"], r["mean_real"], r["mean_hall"], star))
+    L.append("")
+    L.append("  delta / delta_lo are DELETION tests. They cannot detect a mention driven by")
+    L.append("  scene context, because deleting R(w) leaves the scene intact. delta_ins is the")
+    L.append("  SUFFICIENCY test (mask everything EXCEPT R(w)) and is the one that attacks a")
+    L.append("  context-driven hallucination at its source. delta_ins / delta_ctrl also never")
+    L.append("  reference l_full, so they cancel the candidate-vs-probe selection asymmetry.")
 
     base = next((r for r in rows if r["score"] == "s_det"), None)
     occ = [r for r in rows if r["score"] != "s_det"]

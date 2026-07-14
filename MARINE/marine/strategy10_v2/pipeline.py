@@ -33,7 +33,8 @@ from PIL import Image
 
 from . import attribution, calibration, extraction, masking, probes, prompts, scoring
 
-SCORES = ["delta", "delta_lo", "delta_ctrl", "delta_lo_ctrl"]
+SCORES = ["delta", "delta_lo", "delta_ctrl", "delta_lo_ctrl",
+          "delta_ins", "delta_lo_ins"]
 
 
 class Strategy10V2Pipeline:
@@ -59,8 +60,9 @@ class Strategy10V2Pipeline:
         self.elicit_prefix = prompts.elicitation_prefix()
         self.task_prompt = prompts.task_prompt(cfg.task_prompt)
 
-        self.want_lo = "delta_lo" in cfg.scores or "delta_lo_ctrl" in cfg.scores
+        self.want_lo = any(x.startswith("delta_lo") for x in cfg.scores)
         self.want_ctrl = cfg.control_mask
+        self.want_ins = cfg.insertion
 
     # ------------------------------------------------------------------ #
     @torch.inference_mode()
@@ -136,6 +138,17 @@ class Strategy10V2Pipeline:
                     ctrl_patches, self.grid, W, H, self.image_processor)
                 ctrl_img, _ = masking.apply_mask(image, cb, fill)
 
+        # INSERTION: mask everything EXCEPT R(w). The model now sees ONLY the region
+        # that allegedly supports w -- and, crucially, none of the scene context that
+        # a hallucination leans on.
+        keep_patches, keep_img = [], None
+        if self.want_ins and patches:
+            keep_patches = masking.complement_patches(patches, self.grid)
+            if keep_patches:
+                kb = attribution.patches_to_orig_boxes(
+                    keep_patches, self.grid, W, H, self.image_processor)
+                keep_img, _ = masking.apply_mask(image, kb, fill)
+
         row = {
             "word": word,
             "s_det": s_det,
@@ -151,6 +164,8 @@ class Strategy10V2Pipeline:
             "clipped_by_crop": bool(geo.get("clipped_by_crop", False)),
             "masked_area_frac": area,
             "n_ctrl_patches": len(ctrl_patches),
+            "n_keep_masked": len(keep_patches),
+            "_keep_img": keep_img,
             "_patches": patches,
             "_masked_img": masked_img,
             "scores": {},
@@ -176,8 +191,23 @@ class Strategy10V2Pipeline:
                                   mask_patches=ctrl_patches, fill_norm=fill_norm)
             row["ell_ctrl"] = c["ell"]
             # "does deleting w's OWN region hurt w more than deleting an equally
-            # large irrelevant region?" -- the masked-AREA effect cancels.
+            # large, equally shaped irrelevant region?" The masked-AREA effect appears
+            # in both terms and cancels. Note it never touches l_full, so it also
+            # cancels the candidate-vs-probe selection asymmetry that lives there.
             row["scores"]["delta_ctrl"] = c["ell"] - msk["ell"]
+
+        if keep_img is not None:
+            k = self.scorer.score(self.elicit_prefix, word, keep_img,
+                                  mask_patches=keep_patches, fill_norm=fill_norm)
+            row["ell_keep"] = k["ell"]
+            # SUFFICIENCY: "is the evidence INSIDE R(w), or in the scene around it?"
+            # Real -> the region alone still supports w (l_keep high) while deleting it
+            # hurts (l_del low)  -> large positive.
+            # Hallucinated -> R(w) holds nothing (l_keep low) and deleting it changed
+            # little (l_del high) -> negative. Deletion alone cannot see this, because
+            # deletion leaves the scene context -- the very thing that invented the
+            # hallucination -- fully intact.
+            row["scores"]["delta_ins"] = k["ell"] - msk["ell"]
 
         # ---- existence head: log-odds of "is there a w?" --------------------
         if self.want_lo:
@@ -194,6 +224,13 @@ class Strategy10V2Pipeline:
                                                    fill_norm=fill_norm)
                 row["lo_ctrl"] = lo_c["lo"]
                 row["scores"]["delta_lo_ctrl"] = lo_c["lo"] - lo_msk["lo"]
+
+            if keep_img is not None:
+                lo_k = self.scorer.score_existence(word, keep_img,
+                                                   mask_patches=keep_patches,
+                                                   fill_norm=fill_norm)
+                row["lo_keep"] = lo_k["lo"]
+                row["scores"]["delta_lo_ins"] = lo_k["lo"] - lo_msk["lo"]
 
         return row
 
@@ -251,6 +288,7 @@ class Strategy10V2Pipeline:
             row = self.score_word(p, image, det, fill, fill_norm, rng)
             row["gt_present"] = bool(p in gt)   # diagnostic only; never used
             row.pop("_masked_img", None)
+            row.pop("_keep_img", None)
             rec["probes"].append(row)
 
         # ---- Sec 4.3: calibrate EVERY score against the SAME probes ---------

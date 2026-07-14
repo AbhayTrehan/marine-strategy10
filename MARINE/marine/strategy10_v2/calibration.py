@@ -92,3 +92,35 @@ def probe_normality(all_probe_deltas: Sequence[float]) -> Dict[str, float]:
     m3 = sum(((d - mu) / sd) ** 3 for d in all_probe_deltas) / n
     m4 = sum(((d - mu) / sd) ** 4 for d in all_probe_deltas) / n
     return {"n": n, "skew": m3, "excess_kurtosis": m4 - 3.0}
+
+
+def apply_sigma_shrinkage(records, scores, lam: float) -> None:
+    """Shrink each image's sigma_hat toward the pooled sigma across images.
+
+    sigma_hat is estimated from only K (=20) probes, so its relative standard error is
+    ~1/sqrt(2(K-1)) ~ 16%. tau = mu_hat + kappa*sigma_hat therefore inherits that noise:
+    tau is itself a random variable, and an image that happened to draw a small
+    sigma_hat gets a spuriously tight threshold. Shrinking toward the pooled estimate
+    (empirical Bayes / James-Stein) trades a little bias for a large variance
+    reduction, which is exactly the trade you want when the estimator is this noisy.
+
+        sigma' = (1 - lam) * sigma_hat + lam * sigma_pooled
+
+    lam = 0 recovers Eq. (8) exactly, so the default is spec-faithful and this is
+    strictly opt-in.
+    """
+    if lam <= 0:
+        return
+    for sc in scores:
+        sig = [r["null"][sc]["sigma"] for r in records
+               if not r.get("skipped") and sc in (r.get("null") or {})
+               and r["null"][sc]["sigma"] == r["null"][sc]["sigma"]]   # drop NaN
+        if len(sig) < 2:
+            continue
+        pooled = sum(sig) / len(sig)
+        for r in records:
+            if r.get("skipped") or sc not in (r.get("null") or {}):
+                continue
+            n = r["null"][sc]
+            n["sigma_raw"] = n["sigma"]
+            n["sigma"] = (1.0 - lam) * n["sigma"] + lam * pooled
