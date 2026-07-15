@@ -43,14 +43,27 @@ eliminate it.
 
 MECHANISM
 ---------
-* The vision tower's `CLIPVisionTransformer.forward` calls its encoder with
+* Locating the vision tower is layout-dependent and this is handled defensively:
+  pre-refactor transformers exposes `LlavaForConditionalGeneration.vision_tower`
+  directly; transformers>=5 (and some 4.5x point releases) moved the whole
+  multimodal stack under an inner `LlavaModel`, so it is instead
+  `LlavaForConditionalGeneration.model.vision_tower`. Both paths are tried, then
+  we fall back to scanning for a submodule literally named `vision_tower` so a
+  third layout fails loudly with a diagnostic rather than silently.
+
+* The vision tower's `CLIPVisionTransformer.forward` (or, post-refactor, the
+  flattened `CLIPVisionModel.forward`) calls its encoder with
   `attention_mask=None` (hard-coded; it never exposes a mask argument). We
-  therefore wrap each vision-encoder self-attention module's `forward` and, while
-  occlusion is armed, substitute an additive mask of shape (bsz, 1, S, S) whose
-  columns for the object's ViT token indices are -inf. Both the eager
-  (`CLIPAttention`) and SDPA (`CLIPSdpaAttention`) implementations consume an
-  additive `attention_mask` of exactly this shape, so the same wrapper works for
-  either kernel with no change to transformers.
+  therefore wrap each vision-encoder self-attention module's `forward` and,
+  while occlusion is armed, substitute an additive mask of shape (bsz, 1, S, S)
+  whose columns for the object's ViT token indices are -inf. This additive-bias
+  shape is honoured by every attention-kernel variant transformers has shipped
+  for CLIP (eager, sdpa, flash, and the newer unified `ALL_ATTENTION_FUNCTIONS`
+  dispatch that replaced the separate per-kernel classes), so the same wrapper
+  works unmodified across that whole range; `inspect.signature` on the installed
+  version's `forward` decides which of `causal_attention_mask` /
+  `output_attentions` are still valid kwargs to pass through, since newer CLIP
+  refactors dropped both in favour of a bare `**kwargs`.
 
 * The language model needs no wrapping: a standard 2D `attention_mask` with 0 at
   the object image-token positions removes those positions as keys for every
@@ -136,31 +149,61 @@ class AttentionOcclusion:
     # ------------------------------------------------------------------ #
     # installation
     # ------------------------------------------------------------------ #
+    @staticmethod
+    def _get_path(root, path: str):
+        obj = root
+        for attr in path.split("."):
+            obj = getattr(obj, attr, None)
+            if obj is None:
+                return None
+        return obj
+
+    def _find_vision_tower(self):
+        """Locate the vision tower across transformers layouts.
+
+        Pre-refactor (<=~4.5x): `LlavaForConditionalGeneration.vision_tower`.
+        Post-refactor (transformers>=5, and some 4.5x point releases): the whole
+        multimodal model was moved under an inner `LlavaModel`, so it is instead
+        `LlavaForConditionalGeneration.model.vision_tower`. Both are tried, then we
+        fall back to a scan for a submodule literally named `vision_tower` so a
+        third layout does not fail silently.
+        """
+        for path in ("vision_tower", "model.vision_tower"):
+            vt = self._get_path(self.model, path)
+            if vt is not None:
+                return vt
+        for name, module in self.model.named_modules():
+            if name.rsplit(".", 1)[-1] == "vision_tower":
+                return module
+        return None
+
     def _vision_self_attn_modules(self):
         """Every self-attention module in the vision tower's encoder layers.
 
-        Navigated defensively: model.vision_tower is a CLIPVisionModel, whose
-        .vision_model.encoder.layers[i].self_attn are the attention modules. We
-        fall back to a class-name scan if that path is not present.
+        Navigated defensively across layouts: pre-refactor, `vision_tower` is a
+        `CLIPVisionModel` wrapping a `.vision_model.encoder.layers`; post-refactor,
+        `CLIPVisionModel` was flattened so the encoder sits directly at
+        `.encoder.layers`. Both are tried, then we fall back to a class-name scan.
         """
-        mods = []
-        vt = getattr(self.model, "vision_tower", None)
+        vt = self._find_vision_tower()
         if vt is None:
-            raise RuntimeError("model has no .vision_tower; cannot install ViT occlusion")
+            available = sorted({n.split(".")[0] for n, _ in self.model.named_modules() if n})
+            raise RuntimeError(
+                "could not locate the vision tower on this model. Tried "
+                "`model.vision_tower`, `model.model.vision_tower`, and a scan for a "
+                "submodule literally named 'vision_tower'. Top-level submodules found: "
+                f"{available}. Run `for n, _ in model.named_modules(): print(n)` and "
+                "tell me the path to the vision tower so I can add it."
+            )
 
         layers = None
         for path in ("vision_model.encoder.layers", "encoder.layers"):
-            obj = vt
-            ok = True
-            for attr in path.split("."):
-                obj = getattr(obj, attr, None)
-                if obj is None:
-                    ok = False
-                    break
-            if ok:
+            obj = self._get_path(vt, path)
+            if obj is not None:
                 layers = obj
                 break
 
+        mods = []
         if layers is not None:
             for layer in layers:
                 attn = getattr(layer, "self_attn", None)
@@ -184,8 +227,10 @@ class AttentionOcclusion:
                 continue
             orig_forward = attn.forward
             # Which keyword args does this version's attention forward accept?
-            # (Newer CLIP refactors drop `causal_attention_mask`; passing an
-            #  unaccepted kwarg would raise. So we only forward what it takes.)
+            # (Newer CLIP refactors dropped `causal_attention_mask` and
+            #  `output_attentions` as named params in favour of a bare **kwargs;
+            #  passing an unaccepted kwarg would raise. So we only forward what
+            #  the installed version's forward actually takes.)
             try:
                 params = set(inspect.signature(orig_forward).parameters)
             except (TypeError, ValueError):
