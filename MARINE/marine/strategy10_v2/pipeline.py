@@ -31,10 +31,11 @@ import numpy as np
 import torch
 from PIL import Image
 
-from . import attribution, calibration, extraction, masking, probes, prompts, scoring
+from . import (attribution, calibration, extraction, fusion, masking, probes,
+               prompts, scoring)
 
 SCORES = ["delta", "delta_lo", "delta_ctrl", "delta_lo_ctrl",
-          "delta_ins", "delta_lo_ins"]
+          "delta_ins", "delta_lo_ins"] + list(fusion.FUSIONS)
 
 
 class Strategy10V2Pipeline:
@@ -63,6 +64,11 @@ class Strategy10V2Pipeline:
         self.want_lo = any(x.startswith("delta_lo") for x in cfg.scores)
         self.want_ctrl = cfg.control_mask
         self.want_ins = cfg.insertion
+        # The language-prior baseline: the model's belief in w with NO image at all.
+        # Needed to separate "the REGION supports w" from "the SCENE supports w" --
+        # see fusion.py. Cheap: the blank image is the same for every word.
+        self.want_blank = cfg.language_prior
+        self._blank_img = None
 
     # ------------------------------------------------------------------ #
     @torch.inference_mode()
@@ -138,6 +144,10 @@ class Strategy10V2Pipeline:
                     ctrl_patches, self.grid, W, H, self.image_processor)
                 ctrl_img, _ = masking.apply_mask(image, cb, fill)
 
+        # LANGUAGE PRIOR: the whole image masked. Same image for every word, so it is
+        # built once per image and reused.
+        blank_img = self._blank_img if self.want_blank else None
+
         # INSERTION: mask everything EXCEPT R(w). The model now sees ONLY the region
         # that allegedly supports w -- and, crucially, none of the scene context that
         # a hallucination leans on.
@@ -170,6 +180,8 @@ class Strategy10V2Pipeline:
             "_masked_img": masked_img,
             "scores": {},
         }
+
+        all_patches = list(range(self.grid * self.grid))
 
         # ---- likelihood head: Eq. (4) / (6) / (7), verbatim -----------------
         clean = self.scorer.score(self.elicit_prefix, word, image)
@@ -209,6 +221,11 @@ class Strategy10V2Pipeline:
             # hallucination -- fully intact.
             row["scores"]["delta_ins"] = k["ell"] - msk["ell"]
 
+        if blank_img is not None:
+            b = self.scorer.score(self.elicit_prefix, word, blank_img,
+                                  mask_patches=all_patches, fill_norm=fill_norm)
+            row["ell_blank"] = b["ell"]      # the pure language prior
+
         # ---- existence head: log-odds of "is there a w?" --------------------
         if self.want_lo:
             lo_clean = self.scorer.score_existence(word, image)
@@ -232,6 +249,14 @@ class Strategy10V2Pipeline:
                 row["lo_keep"] = lo_k["lo"]
                 row["scores"]["delta_lo_ins"] = lo_k["lo"] - lo_msk["lo"]
 
+            if blank_img is not None:
+                lo_b = self.scorer.score_existence(word, blank_img,
+                                                   mask_patches=all_patches,
+                                                   fill_norm=fill_norm)
+                row["lo_blank"] = lo_b["lo"]   # CAUSAL EXISTENCE under no image at all
+
+        row["features"] = fusion.compute_features(row)
+
         return row
 
     # ------------------------------------------------------------------ #
@@ -240,6 +265,11 @@ class Strategy10V2Pipeline:
         image = Image.open(f"{cfg.image_folder.rstrip('/')}/{image_file}").convert("RGB")
         fill = masking.mean_pixel(image)
         fill_norm = masking.normalised_fill(fill, self.image_processor)
+
+        self._blank_img = None
+        if self.want_blank:
+            W0, H0 = image.size
+            self._blank_img, _ = masking.apply_mask(image, [[0, 0, W0, H0]], fill)
 
         caption = self.generate_caption(image)
         objects = extraction.extract_objects_extended(
@@ -290,6 +320,14 @@ class Strategy10V2Pipeline:
             row.pop("_masked_img", None)
             row.pop("_keep_img", None)
             rec["probes"].append(row)
+
+        # ---- fusion: standardise every feature against THIS image's probe null,
+        #      then combine with fixed signs (fusion.py). Training-free: the probes
+        #      supply mu and sigma exactly as they already do for tau.
+        fnull = fusion.fit_null(rec["probes"])
+        rec["feature_null"] = fnull
+        fusion.apply_fusions(rec["objects"], fnull)
+        fusion.apply_fusions(rec["probes"], fnull)
 
         # ---- Sec 4.3: calibrate EVERY score against the SAME probes ---------
         rec["null"] = {}

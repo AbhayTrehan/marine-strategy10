@@ -37,4 +37,6 @@ echo "  --no_control_mask              # isolate what the control mask alone bou
 echo "  --seg_backend box              # what SAM bought you (A/B)"
 echo "  --primary_score delta_ins      # decide on sufficiency instead of deletion"
 echo "  --sigma_shrink 0.5             # shrink tau's noise at K=20"
+echo "  --no_language_prior            # drop the blank pass (disables CES fusions)"
+echo "  --primary_score ces            # decide on the fused causal-existence score"
 echo "  --probe_vocab ram              # richer null (probes need no ground truth)"

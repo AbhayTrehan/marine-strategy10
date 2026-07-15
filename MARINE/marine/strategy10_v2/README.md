@@ -1,6 +1,65 @@
 # Strategy 10 (v2) — sanity check
 
-## What's new in this revision
+## The Causal Existence framework (this revision)
+
+The first full run produced this ladder:
+
+```
+s_det          0.859   <- a raw detector score, no LVLM at all
+delta          0.792   <- the spec's deletion test
+delta_ctrl     0.737
+delta_lo       0.727
+delta_lo_ins   0.698
+delta_lo_ctrl  0.684
+delta_ins      0.658   <- the score that was supposed to win
+```
+
+Insertion came **last**, and every single occlusion score lost to a raw detector. But
+`delta_ins`'s *separation of the means* was actually larger than `delta`'s (1.478 vs
+1.390) — the means moved the right way and the **variance exploded**. Two causes:
+`ℓ_keep` is read off a ~90%-grey (out-of-distribution) image whose value is dominated
+by how big R(w) is, so deletion and insertion carry the masked-**area** confound with
+opposite signs and subtracting them amplifies it; and dropping `ℓ_full` threw away real
+signal along with the selection bias.
+
+**The missing measurement.** Every score above is a linear combination of just three
+numbers — `ℓ_full`, `ℓ_del`, `ℓ_keep` — which is why they collapse onto each other. The
+one never measured is the **language prior**: the model's belief with the image
+*entirely* masked. Add a blank-image pass and existence log-odds **decompose**:
+
+```
+PRIOR(w) = LO_blank                pure language prior, no image at all
+SUF(w)   = LO_keep − LO_blank      evidence from the REGION,  above the prior
+CTX(w)   = LO_del  − LO_blank      evidence from the SCENE,   above the prior   ← new
+NEC(w)   = LO_full − LO_del        necessity  (= delta_lo)
+```
+
+`CTX` is the new axis, and it points the **other way**: a hallucinated object survives
+deletion of its own region (`LO_del` stays high) while its prior is only a prior, so
+`CTX` is **large** for hallucinations and small/negative for real objects. Sec 3.4
+literally defines a hallucination as one "driven by language priors or scene-level
+plausibility" — `CTX` is that quantity, finally measured.
+
+**The fusion.** Standardise every feature against that image's own probe null (Eq. 8 on
+a vector instead of a scalar) and combine with fixed signs:
+
+```
+CES(w) = z(NEC) + z(SUF) − z(CTX)
+```
+
+High necessity, high sufficiency, **low context-dependence** = grounded. Training-free:
+the probes supply μ and σ, exactly as they already do for τ. It's a hypothesis about
+*signs*, not a learned weight vector. The report computes AUROC for `ces`, `ces_lik`,
+`ces_both`, `ces_det`, `fuse_all` alongside every raw score — the data picks the winner.
+
+In a simulation calibrated to the real run's noise (s_det 0.83, delta 0.76, ctx
+inverted at 0.25), **CES reaches 0.887 and CES+detector 0.896**, both clearing the
+detector baseline — because the masked-area confound is *common-mode* across
+nec/suf/ctx and subtracting z(ctx) cancels it, which no single score can do. Whether
+that holds on the real GPU run is the thing to check; the AUROC table will say.
+
+## Earlier changes
+
 
 **Grounded-SAM regions.** GroundingDINO localises (box), **SAM** refines it to a pixel
 silhouette. *SAM cannot replace GDINO* — it has no text input and cannot be asked to

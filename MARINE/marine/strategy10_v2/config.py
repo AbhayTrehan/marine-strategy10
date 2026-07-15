@@ -165,6 +165,21 @@ class Strategy10V2Config:
     control_mask: bool = True          # mask an equal-size, equal-shape region ELSEWHERE
     insertion: bool = True             # mask everything EXCEPT R(w)  (sufficiency)
 
+    # THE LANGUAGE-PRIOR BASELINE. The model's belief in w with the image ENTIRELY
+    # masked. Without it, every score is a linear combination of just three numbers
+    # (l_full, l_del, l_keep), which is why they all kept collapsing onto each other.
+    # With it, existence log-odds DECOMPOSE:
+    #     PRIOR = LO_blank                 pure language prior, no image
+    #     SUF   = LO_keep - LO_blank       evidence from the REGION
+    #     CTX   = LO_del  - LO_blank       evidence from the SCENE     <- never measured
+    #     NEC   = LO_full - LO_del         necessity
+    # CTX is the new signal, and it points the OTHER WAY: a hallucination survives the
+    # deletion of its own region (LO_del stays high) while its prior is only a prior,
+    # so CTX is LARGE for hallucinations and small/negative for real objects. Sec 3.4
+    # literally defines a hallucination as one "driven by language priors or
+    # scene-level plausibility" -- CTX is that quantity, measured.
+    language_prior: bool = True
+
     # sigma_hat from K=20 probes has ~16% relative standard error, so tau is itself a
     # noisy random variable. Shrink the per-image sigma_hat toward the pooled sigma
     # across images (empirical-Bayes / James-Stein). 0.0 = pure Eq. (8), spec-faithful.

@@ -347,6 +347,19 @@ SCORE_LABELS = {
     "delta_lo_ins": "delta_lo_ins  = LO_keep - LO_del    [insertion, existence head]",
     "delta_ctrl": "delta_ctrl    = l_ctrl - l_del      [area-controlled deletion]",
     "delta_lo_ctrl": "delta_lo_ctrl = LO_ctrl - LO_del    [area-controlled, existence]",
+
+    # --- the intervention decomposition (needs the blank-image / language-prior pass)
+    "nec_lo": "  nec_lo      = LO_full - LO_del    [necessity]",
+    "suf_lo": "  suf_lo      = LO_keep - LO_blank  [SUFFICIENCY, above the prior]",
+    "ctx_lo": "  ctx_lo      = LO_del  - LO_blank  [SCENE support -- expect < 0.5!]",
+    "prior_lo": "  prior_lo    = LO_blank            [pure language prior, no image]",
+
+    # --- fusions: z-standardised against the probe null, fixed signs -----------
+    "ces": "CES        = z(nec_lo)+z(suf_lo)-z(ctx_lo)   [CAUSAL EXISTENCE]",
+    "ces_lik": "CES_lik    = same, on the likelihood head",
+    "ces_both": "CES_both   = both heads",
+    "ces_det": "CES+det    = CES + z(s_det)",
+    "fuse_all": "FUSE_all   = every feature + z(s_det)",
 }
 
 # Scores that never reference l_full, and therefore cancel the candidate-vs-probe
@@ -378,10 +391,18 @@ def auroc_table(records) -> List[Dict]:
     hall = [o for o in objs if o["gt_label"] == "HALLUCINATED"]
 
     rows = []
-    for key in ["s_det", "delta", "delta_lo", "delta_ins", "delta_lo_ins",
-                "delta_ctrl", "delta_lo_ctrl"]:
-        def get(o):
-            return o["s_det"] if key == "s_det" else o.get("scores", {}).get(key)
+    keys = ["s_det", "delta", "delta_lo", "delta_ins", "delta_lo_ins",
+            "delta_ctrl", "delta_lo_ctrl",
+            "nec_lo", "suf_lo", "ctx_lo", "prior_lo",
+            "ces", "ces_lik", "ces_both", "ces_det", "fuse_all"]
+    for key in keys:
+        def get(o, _k=key):
+            if _k == "s_det":
+                return o["s_det"]
+            v = o.get("scores", {}).get(_k)
+            if v is None:
+                v = o.get("features", {}).get(_k)
+            return v
 
         r = [get(o) for o in real if get(o) is not None]
         h = [get(o) for o in hall if get(o) is not None]
@@ -420,11 +441,14 @@ def format_auroc_table(records) -> str:
         L.append("  {:<58} {:>7.3f}  {:>+11.3f} {:>+11.3f}{}".format(
             r["label"], r["auroc"], r["mean_real"], r["mean_hall"], star))
     L.append("")
-    L.append("  delta / delta_lo are DELETION tests. They cannot detect a mention driven by")
-    L.append("  scene context, because deleting R(w) leaves the scene intact. delta_ins is the")
-    L.append("  SUFFICIENCY test (mask everything EXCEPT R(w)) and is the one that attacks a")
-    L.append("  context-driven hallucination at its source. delta_ins / delta_ctrl also never")
-    L.append("  reference l_full, so they cancel the candidate-vs-probe selection asymmetry.")
+    L.append("  ctx_lo measures how much the SCENE (not the region) supports w. It should")
+    L.append("  come out BELOW 0.5 -- a hallucination is precisely a word the scene supports")
+    L.append("  and the region does not. That is not a bug; it is the signal, inverted. CES")
+    L.append("  exploits it by SUBTRACTING it: CES = z(nec) + z(suf) - z(ctx).")
+    L.append("")
+    L.append("  Every fusion is standardised against THAT IMAGE'S OWN probe null -- Eq. (8)")
+    L.append("  applied to a vector rather than a scalar. No labels, no fitting, no training:")
+    L.append("  the combination is a hypothesis about SIGNS, not a learned weight vector.")
 
     base = next((r for r in rows if r["score"] == "s_det"), None)
     occ = [r for r in rows if r["score"] != "s_det"]

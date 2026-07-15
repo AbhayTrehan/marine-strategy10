@@ -117,6 +117,11 @@ def parse_args():
                         "Deletion alone cannot detect a hallucination driven by scene "
                         "context, because deleting R(w) leaves the scene intact. "
                         "On by default.")
+    p.add_argument("--no_language_prior", action="store_true",
+                   help="skip the blank-image pass. Without it the CTX feature and every "
+                        "CES fusion are unavailable, because you cannot separate 'the "
+                        "REGION supports w' from 'the SCENE supports w' without knowing "
+                        "what the model believed with no image at all.")
     p.add_argument("--sigma_shrink", type=float, default=d.sigma_shrink,
                    help="shrink per-image sigma_hat toward the pooled sigma (0..1). "
                         "0 = Eq. (8) exactly.")
@@ -159,7 +164,7 @@ def parse_args():
         scores=[x.strip() for x in a.scores.split(",") if x.strip()],
         primary_score=a.primary_score,
         control_mask=not a.no_control_mask, insertion=not a.no_insertion,
-        sigma_shrink=a.sigma_shrink,
+        language_prior=not a.no_language_prior, sigma_shrink=a.sigma_shrink,
         ram_vocab_file=a.ram_vocab_file,
         extract_non_coco=not a.no_extract_non_coco,
         probe_vocab=a.probe_vocab, dup_iou=a.dup_iou,
@@ -289,9 +294,13 @@ def main():
     )
     print(f"[setup] task prompt x = {cfg.task_prompt!r}")
     print(f"[setup] c_elicit = {pipe.elicit_prefix!r}")
-    print(f"[setup] scores    = deletion{' + insertion' if cfg.insertion else ''}"
-          f"{' + control' if cfg.control_mask else ''}, on the likelihood and "
-          f"existence heads   (decision on: {cfg.primary_score})")
+    print(f"[setup] interventions = full, delete"
+          f"{', insert' if cfg.insertion else ''}"
+          f"{', control' if cfg.control_mask else ''}"
+          f"{', BLANK (language prior)' if cfg.language_prior else ''}")
+    print(f"[setup] heads         = likelihood + existence(yes/no log-odds)")
+    print(f"[setup] fusions       = {list(__import__('marine.strategy10_v2.fusion', fromlist=['FUSIONS']).FUSIONS)}")
+    print(f"[setup] decision on   = {cfg.primary_score}")
     print(f"[setup] R(w) = union of ALL detected instances "
           f"(ratio={cfg.det_inst_ratio}, floor={cfg.det_inst_floor}, "
           f"max={cfg.det_max_instances})")
