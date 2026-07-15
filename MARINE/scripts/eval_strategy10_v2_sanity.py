@@ -133,10 +133,17 @@ def parse_args():
     p.add_argument("--probe_vocab", choices=["coco", "ram"], default=d.probe_vocab)
     p.add_argument("--dup_iou", type=float, default=d.dup_iou)
 
+    p.add_argument("--occlusion", choices=["attention", "pixel"], default=d.occlusion,
+                   help="how R(w) is removed for the causal test. 'attention' (default): "
+                        "drop the object's patches from ViT self-attention AND from the "
+                        "LVLM's attention over image tokens; the image is left untouched "
+                        "and the object provably cannot reach any read position. 'pixel': "
+                        "legacy mean-fill inpainting (kept for the attention-vs-pixel "
+                        "ablation).")
     p.add_argument("--no_enforce_pixel_mask", action="store_true",
-                   help="DIAGNOSTIC ONLY: skip re-asserting the mask on pixel_values. "
-                        "Leaves resize-interpolation leakage in the masked patches; "
-                        "use it to see how much that leakage was worth.")
+                   help="DIAGNOSTIC ONLY (occlusion=pixel): skip re-asserting the mask on "
+                        "pixel_values. Leaves resize-interpolation leakage in the masked "
+                        "patches; use it to see how much that leakage was worth.")
 
     p.add_argument("--output_dir", type=str, default=d.output_dir)
     p.add_argument("--html_max_width", type=int, default=d.html_max_width)
@@ -158,6 +165,7 @@ def parse_args():
         K=a.K, tau_low=a.tau_low, cooccur_bias=a.cooccur_bias,
         kappa=a.kappa,
         kappa_sweep=[float(x) for x in a.kappa_sweep.split(",") if x.strip()],
+        occlusion=a.occlusion,
         enforce_pixel_mask=not a.no_enforce_pixel_mask,
         seg_backend=a.seg_backend, sam_path=a.sam_path,
         mask_dilate_patches=a.mask_dilate_patches,
@@ -304,7 +312,12 @@ def main():
     print(f"[setup] R(w) = union of ALL detected instances "
           f"(ratio={cfg.det_inst_ratio}, floor={cfg.det_inst_floor}, "
           f"max={cfg.det_max_instances})")
-    print(f"[setup] mask: patch-aligned; pixel_values enforcement = {cfg.enforce_pixel_mask}")
+    if cfg.occlusion == "attention":
+        print("[setup] occlusion    = attention (R(w) dropped from ViT + LVLM attention; "
+              "image untouched, no residual leak)")
+    else:
+        print(f"[setup] occlusion    = pixel (mean-fill inpainting); "
+              f"pixel_values enforcement = {cfg.enforce_pixel_mask}")
     print()
 
     # ---- run ---------------------------------------------------------------

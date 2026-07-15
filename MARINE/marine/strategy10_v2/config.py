@@ -194,11 +194,33 @@ class Strategy10V2Config:
     probe_vocab: str = "coco"          # "coco" | "ram"
     dup_iou: float = 0.5               # flag candidates whose regions collide
 
-    # ---- masking integrity --------------------------------------------------
+    # ---- occlusion mechanism ------------------------------------------------
+    # HOW a patch region R(w) is removed from the model for the causal test.
+    #
+    #   "attention" (default): R(w) is removed from ATTENTION -- its patch tokens
+    #       are dropped as keys in every ViT self-attention layer, and its image
+    #       tokens are dropped as keys in the LVLM's attention -- while the image
+    #       itself is left untouched. This is the intervention the method actually
+    #       wants: the model does not attend to the object's patches at all. After
+    #       occlusion the object's pixels have no attention path to any read
+    #       position, so perturbing them cannot change l_masked (verified by
+    #       attn_masking_selftest.py). This eliminates -- rather than measures --
+    #       the two leaks the pixel path fought (partial patches, resize bleed) and
+    #       the third the pixel path could not touch at all: the ViT's own self-
+    #       attention having already copied the object into neighbouring tokens.
+    #
+    #   "pixel": the legacy inpainting path. R(w)'s patches are overwritten with
+    #       the per-channel mean pixel value on the normalised pixel_values tensor
+    #       (see masking.py). Retained for ablation -- pixel-vs-attention is a
+    #       first-class comparison for Section 8 -- and NOT the default.
+    occlusion: str = "attention"
+
+    # ---- masking integrity (occlusion="pixel" only) -------------------------
     # Re-assert the mask on the normalised pixel_values tensor right before the
     # vision tower. Guarantees a masked patch carries literally zero object
     # signal, including signal that resize interpolation would otherwise smear in
-    # from just outside the box. Leave this on.
+    # from just outside the box. Only consulted by the legacy pixel path;
+    # attention occlusion needs no such enforcement because it never inpaints.
     enforce_pixel_mask: bool = True
 
     # ---- output -------------------------------------------------------------

@@ -267,9 +267,15 @@ def format_summary(records: List[Dict], cfg) -> str:
     leak_max = max([o.get("leak_max", 0.0) for o in obj_rows] or [0.0])
     bad = sum(1 for o in obj_rows if not o.get("mask_enforced_ok", True))
     outside = sum(1 for o in obj_rows if o.get("outside_crop"))
+    occ_mode = records[0].get("occlusion", "pixel") if records else "pixel"
     L.append("  Masking integrity:")
-    L.append(f"      residual leak into masked patches (max |dev|, pre-enforcement) : {leak_max:.2e}")
-    L.append(f"      objects where mask enforcement FAILED                          : {bad}")
+    L.append(f"      occlusion mechanism                                            : {occ_mode}")
+    if occ_mode == "attention":
+        L.append("      (object removed from ViT + LVLM attention; no pixel altered, so")
+        L.append("       there is no residual leak to measure -- occlusion is exact.)")
+    else:
+        L.append(f"      residual leak into masked patches (max |dev|, pre-enforcement) : {leak_max:.2e}")
+        L.append(f"      objects where mask enforcement FAILED                          : {bad}")
     L.append(f"      boxes falling outside the centre-crop (nothing to mask)        : {outside}")
     L.append("")
 

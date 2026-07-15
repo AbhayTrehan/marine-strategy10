@@ -8,9 +8,27 @@ THE FORMULAE ARE EXACTLY AS SPECIFIED. Nothing here is reinterpreted.
     Delta(w)      = ell(w) - ell_masked(w)                                       (Eq. 7)
 
 The ONLY thing added relative to a naive implementation is `mask_patches`: the
-set of ViT patches to overwrite on the normalised pixel_values tensor before it
-reaches the vision tower (see masking.py for why that is necessary). It changes
-what the model SEES; it does not change how the score is COMPUTED.
+set of ViT patches to OCCLUDE for this forward pass. It changes what the model
+can attend to; it does not change how the score is COMPUTED.
+
+HOW A PATCH SET IS OCCLUDED (occlusion="attention", the default)
+---------------------------------------------------------------
+The image is left untouched. `mask_patches` is realised as an ATTENTION mask, in
+two places, for the duration of this one forward pass (see attn_masking.py):
+
+  * inside the vision tower, the object's patch tokens are removed as attention
+    keys in every ViT layer, so no surviving patch token routes the object's
+    content out of the masked region; and
+  * in the language model, the image tokens for those patches are removed as
+    attention keys (a 0 in the 2D attention_mask), so the teacher-forced word
+    tokens cannot read them either.
+
+After occlusion the object's pixels have NO attention path to any position whose
+logits we read, so l_masked(w) is computed on a model that genuinely cannot see
+the object -- not on a model shown a grey rectangle where the object was. The
+legacy pixel-inpainting path (occlusion="pixel") is retained for ablation and is
+selected by config; it overwrites the masked patches on the normalised
+pixel_values tensor exactly as before (see masking.py).
 
 Two implementation details that decide whether Eq. (4) is actually what gets
 computed, rather than something that merely resembles it:
@@ -41,6 +59,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import torch
 
 from . import masking, prompts
+from .attn_masking import AttentionOcclusion
 
 
 def continuation_length(tokenizer, prefix: str, full: str) -> int:
@@ -56,7 +75,7 @@ def continuation_length(tokenizer, prefix: str, full: str) -> int:
 
 class OcclusionScorer:
     def __init__(self, model, tokenizer, processor, device: str, dtype: torch.dtype,
-                 grid: int):
+                 grid: int, occlusion: str = "attention"):
         self.model = model
         self.tokenizer = tokenizer
         self.processor = processor
@@ -64,38 +83,69 @@ class OcclusionScorer:
         self.dtype = dtype
         self.grid = grid
 
+        # "attention": remove the object's patches from ViT self-attention AND from
+        #              the LVLM's attention over image tokens (the default; exact).
+        # "pixel":     legacy inpainting -- overwrite the patches on pixel_values
+        #              with the mean-fill colour (kept for ablation).
+        if occlusion not in ("attention", "pixel"):
+            raise ValueError(f"occlusion must be 'attention' or 'pixel', got {occlusion!r}")
+        self.occlusion = occlusion
+        self.occ = AttentionOcclusion(model, grid) if occlusion == "attention" else None
+
     # ------------------------------------------------------------------ #
     @torch.inference_mode()
     def _forward(self, text: str, image,
                  mask_patches: Optional[Sequence[int]] = None,
                  fill_norm: Optional[Sequence[float]] = None,
                  measure: bool = False):
-        """One forward pass, with the mask asserted on pixel_values before the ViT.
+        """One forward pass. `image` is ALWAYS the original, unmodified image.
 
-        Shared by BOTH scoring heads (likelihood and existence) so that a masked
-        image is masked identically no matter which score is being computed.
+        If `mask_patches` is given, those patches are occluded for this pass:
+          * occlusion="attention" (default): the patches are removed from ViT
+            self-attention and from the LVLM's attention over image tokens. The
+            pixels are never touched.
+          * occlusion="pixel": the patches are overwritten on the normalised
+            pixel_values tensor with `fill_norm` (legacy inpainting).
+
+        Shared by BOTH scoring heads (likelihood and existence) so that a given
+        patch set is occluded identically no matter which score is being computed.
         """
         inputs = self.processor(text=text, images=image, return_tensors="pt")
         inputs = {k: v.to(self.device) for k, v in inputs.items()
                   if isinstance(v, torch.Tensor)}
         inputs["pixel_values"] = inputs["pixel_values"].to(self.dtype)
 
+        patches = list(mask_patches) if mask_patches else []
         leak = None
-        if mask_patches is not None and len(mask_patches) and fill_norm is not None:
+        enforced_ok = True
+
+        if not patches:
+            outputs = self.model(**inputs, use_cache=False, return_dict=True)
+
+        elif self.occlusion == "attention":
+            # Block the object's image tokens as keys in the LVLM (2D mask hole),
+            # and its patch tokens as keys in every ViT layer (armed context).
+            inputs["attention_mask"] = self.occ.llm_attention_mask(
+                inputs["input_ids"], inputs.get("attention_mask"), patches
+            )
+            with self.occ.occlude(patches):
+                outputs = self.model(**inputs, use_cache=False, return_dict=True)
+
+        else:  # occlusion == "pixel" (legacy inpainting, kept for ablation)
+            if fill_norm is None:
+                raise ValueError("pixel occlusion requires fill_norm")
             if measure:
                 leak = masking.measure_leak(
-                    inputs["pixel_values"].float(), mask_patches, self.grid, fill_norm
+                    inputs["pixel_values"].float(), patches, self.grid, fill_norm
                 )
             inputs["pixel_values"] = masking.enforce_on_pixel_values(
-                inputs["pixel_values"], mask_patches, self.grid, fill_norm
+                inputs["pixel_values"], patches, self.grid, fill_norm
             )
             enforced_ok = masking.verify_enforced(
-                inputs["pixel_values"], mask_patches, self.grid, fill_norm
+                inputs["pixel_values"], patches, self.grid, fill_norm
             )
-        else:
-            enforced_ok = True
+            outputs = self.model(**inputs, use_cache=False, return_dict=True)
 
-        outputs = self.model(**inputs, use_cache=False, return_dict=True)
         return outputs.logits[0].float(), inputs["input_ids"][0], leak, enforced_ok
 
     # ------------------------------------------------------------------ #

@@ -55,7 +55,8 @@ class Strategy10V2Pipeline:
 
         self.dtype = torch.float16 if cfg.fp16 else torch.float32
         self.scorer = scoring.OcclusionScorer(
-            model, tokenizer, processor, cfg.device, self.dtype, grid
+            model, tokenizer, processor, cfg.device, self.dtype, grid,
+            occlusion=getattr(cfg, "occlusion", "attention"),
         )
         self.image_processor = processor.image_processor
         self.elicit_prefix = prompts.elicitation_prefix()
@@ -68,7 +69,6 @@ class Strategy10V2Pipeline:
         # Needed to separate "the REGION supports w" from "the SCENE supports w" --
         # see fusion.py. Cheap: the blank image is the same for every word.
         self.want_blank = cfg.language_prior
-        self._blank_img = None
 
     # ------------------------------------------------------------------ #
     @torch.inference_mode()
@@ -132,32 +132,34 @@ class Strategy10V2Pipeline:
         patches, geo, boxes, entry, seg_used, sam_mask = self._region(word, image, det)
         s_det = float(entry.get("score", 0.0))
 
+        # An OCCLUSION is fully specified by a set of patch indices. Under
+        # occlusion="attention" (the default) each intervention below is realised
+        # by removing that patch set from attention over the ORIGINAL image (see
+        # scoring._forward / attn_masking.py); no image is ever inpainted. Under
+        # occlusion="pixel" the same patch set is instead overwritten on the
+        # normalised pixel_values tensor. Either way the scorer is handed the
+        # original `image` plus the patch set, so no pre-masked PIL image is built
+        # for scoring in either mode.
+
+        # DELETION region R(w): patches themselves.
+        # For the HTML report only, render an overlay that greys R(w) so the reader
+        # can see WHICH region was occluded. This image is display-only and is never
+        # fed to the model.
         mask_boxes = attribution.patches_to_orig_boxes(
             patches, self.grid, W, H, self.image_processor)
-        masked_img, area = masking.apply_mask(image, mask_boxes, fill)
+        overlay_img, area = masking.apply_mask(image, mask_boxes, fill)
 
-        ctrl_patches, ctrl_img = [], None
+        # CONTROL: an equally sized/shaped region placed elsewhere.
+        ctrl_patches = []
         if self.want_ctrl and patches:
             ctrl_patches = masking.sample_control_patches(patches, self.grid, rng)
-            if ctrl_patches:
-                cb = attribution.patches_to_orig_boxes(
-                    ctrl_patches, self.grid, W, H, self.image_processor)
-                ctrl_img, _ = masking.apply_mask(image, cb, fill)
 
-        # LANGUAGE PRIOR: the whole image masked. Same image for every word, so it is
-        # built once per image and reused.
-        blank_img = self._blank_img if self.want_blank else None
-
-        # INSERTION: mask everything EXCEPT R(w). The model now sees ONLY the region
-        # that allegedly supports w -- and, crucially, none of the scene context that
-        # a hallucination leans on.
-        keep_patches, keep_img = [], None
+        # INSERTION: mask everything EXCEPT R(w). The model then attends to ONLY the
+        # region that allegedly supports w -- and, crucially, to none of the scene
+        # context that a hallucination leans on.
+        keep_patches = []
         if self.want_ins and patches:
             keep_patches = masking.complement_patches(patches, self.grid)
-            if keep_patches:
-                kb = attribution.patches_to_orig_boxes(
-                    keep_patches, self.grid, W, H, self.image_processor)
-                keep_img, _ = masking.apply_mask(image, kb, fill)
 
         row = {
             "word": word,
@@ -175,18 +177,21 @@ class Strategy10V2Pipeline:
             "masked_area_frac": area,
             "n_ctrl_patches": len(ctrl_patches),
             "n_keep_masked": len(keep_patches),
-            "_keep_img": keep_img,
             "_patches": patches,
-            "_masked_img": masked_img,
+            "_masked_img": overlay_img,   # display-only overlay of the occluded region
             "scores": {},
         }
 
         all_patches = list(range(self.grid * self.grid))
 
+        # Every scored pass below is handed the ORIGINAL `image`; the occlusion is
+        # the patch set passed as mask_patches (applied via attention by default).
+        # fill_norm is only consulted by the legacy occlusion="pixel" path.
+
         # ---- likelihood head: Eq. (4) / (6) / (7), verbatim -----------------
-        clean = self.scorer.score(self.elicit_prefix, word, image)
-        msk = self.scorer.score(self.elicit_prefix, word, masked_img,
-                                mask_patches=patches, fill_norm=fill_norm, measure=True)
+        clean = self.scorer.score(self.elicit_prefix, word, image)                  # l(w | I)
+        msk = self.scorer.score(self.elicit_prefix, word, image,
+                                mask_patches=patches, fill_norm=fill_norm, measure=True)  # l(w | I \ R)
         row.update({
             "ell": clean["ell"], "ell_masked": msk["ell"],
             "p": scoring.probability(clean["ell"]),
@@ -198,8 +203,8 @@ class Strategy10V2Pipeline:
         row["scores"]["delta"] = scoring.delta(clean["ell"], msk["ell"])
         row["conf_drop_pct"] = scoring.confidence_drop_pct(row["scores"]["delta"])
 
-        if ctrl_img is not None:
-            c = self.scorer.score(self.elicit_prefix, word, ctrl_img,
+        if ctrl_patches:
+            c = self.scorer.score(self.elicit_prefix, word, image,
                                   mask_patches=ctrl_patches, fill_norm=fill_norm)
             row["ell_ctrl"] = c["ell"]
             # "does deleting w's OWN region hurt w more than deleting an equally
@@ -208,8 +213,8 @@ class Strategy10V2Pipeline:
             # cancels the candidate-vs-probe selection asymmetry that lives there.
             row["scores"]["delta_ctrl"] = c["ell"] - msk["ell"]
 
-        if keep_img is not None:
-            k = self.scorer.score(self.elicit_prefix, word, keep_img,
+        if keep_patches:
+            k = self.scorer.score(self.elicit_prefix, word, image,
                                   mask_patches=keep_patches, fill_norm=fill_norm)
             row["ell_keep"] = k["ell"]
             # SUFFICIENCY: "is the evidence INSIDE R(w), or in the scene around it?"
@@ -221,39 +226,39 @@ class Strategy10V2Pipeline:
             # hallucination -- fully intact.
             row["scores"]["delta_ins"] = k["ell"] - msk["ell"]
 
-        if blank_img is not None:
-            b = self.scorer.score(self.elicit_prefix, word, blank_img,
+        if self.want_blank:
+            b = self.scorer.score(self.elicit_prefix, word, image,
                                   mask_patches=all_patches, fill_norm=fill_norm)
-            row["ell_blank"] = b["ell"]      # the pure language prior
+            row["ell_blank"] = b["ell"]      # the pure language prior (no image attended)
 
         # ---- existence head: log-odds of "is there a w?" --------------------
         if self.want_lo:
             lo_clean = self.scorer.score_existence(word, image)
-            lo_msk = self.scorer.score_existence(word, masked_img,
+            lo_msk = self.scorer.score_existence(word, image,
                                                  mask_patches=patches, fill_norm=fill_norm)
             row.update({"lo": lo_clean["lo"], "lo_masked": lo_msk["lo"],
                         "p_yes": lo_clean["p_yes"], "p_yes_masked": lo_msk["p_yes"]})
             row["scores"]["delta_lo"] = lo_clean["lo"] - lo_msk["lo"]
 
-            if ctrl_img is not None:
-                lo_c = self.scorer.score_existence(word, ctrl_img,
+            if ctrl_patches:
+                lo_c = self.scorer.score_existence(word, image,
                                                    mask_patches=ctrl_patches,
                                                    fill_norm=fill_norm)
                 row["lo_ctrl"] = lo_c["lo"]
                 row["scores"]["delta_lo_ctrl"] = lo_c["lo"] - lo_msk["lo"]
 
-            if keep_img is not None:
-                lo_k = self.scorer.score_existence(word, keep_img,
+            if keep_patches:
+                lo_k = self.scorer.score_existence(word, image,
                                                    mask_patches=keep_patches,
                                                    fill_norm=fill_norm)
                 row["lo_keep"] = lo_k["lo"]
                 row["scores"]["delta_lo_ins"] = lo_k["lo"] - lo_msk["lo"]
 
-            if blank_img is not None:
-                lo_b = self.scorer.score_existence(word, blank_img,
+            if self.want_blank:
+                lo_b = self.scorer.score_existence(word, image,
                                                    mask_patches=all_patches,
                                                    fill_norm=fill_norm)
-                row["lo_blank"] = lo_b["lo"]   # CAUSAL EXISTENCE under no image at all
+                row["lo_blank"] = lo_b["lo"]   # CAUSAL EXISTENCE under no image attended
 
         row["features"] = fusion.compute_features(row)
 
@@ -263,13 +268,8 @@ class Strategy10V2Pipeline:
     def run_image(self, image_file: str, image_id: int, rng: random.Random) -> Dict:
         cfg = self.cfg
         image = Image.open(f"{cfg.image_folder.rstrip('/')}/{image_file}").convert("RGB")
-        fill = masking.mean_pixel(image)
-        fill_norm = masking.normalised_fill(fill, self.image_processor)
-
-        self._blank_img = None
-        if self.want_blank:
-            W0, H0 = image.size
-            self._blank_img, _ = masking.apply_mask(image, [[0, 0, W0, H0]], fill)
+        fill = masking.mean_pixel(image)             # display overlay colour; also the
+        fill_norm = masking.normalised_fill(fill, self.image_processor)  # legacy pixel fill
 
         caption = self.generate_caption(image)
         objects = extraction.extract_objects_extended(
@@ -317,8 +317,7 @@ class Strategy10V2Pipeline:
         for p in probe_words:
             row = self.score_word(p, image, det, fill, fill_norm, rng)
             row["gt_present"] = bool(p in gt)   # diagnostic only; never used
-            row.pop("_masked_img", None)
-            row.pop("_keep_img", None)
+            row.pop("_masked_img", None)        # probes carry no report thumbnail
             rec["probes"].append(row)
 
         # ---- fusion: standardise every feature against THIS image's probe null,
@@ -345,6 +344,7 @@ class Strategy10V2Pipeline:
         rec["tau"] = rec["null"].get(prim, {}).get("tau", float("nan"))
         rec["kappa"] = cfg.kappa
         rec["primary_score"] = prim
+        rec["occlusion"] = getattr(cfg, "occlusion", "attention")
 
         for row in rec["objects"]:
             v = row["scores"].get(prim)

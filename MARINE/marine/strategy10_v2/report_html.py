@@ -193,6 +193,14 @@ def _image_card(rec: Dict, cfg, idx: int, total: int) -> str:
 
     n_contam = sum(1 for p in rec["probes"] if p.get("gt_present"))
     leak_max = max([r["leak_max"] for r in rec["objects"]] or [0.0])
+    occ_mode = rec.get("occlusion", "pixel")  # legacy caches (no key) were pixel
+    if occ_mode == "attention":
+        leak_txt = ("occlusion: attention "
+                    "(object removed from ViT + LVLM attention; no residual leak by construction)")
+        masked_col = "occluded region (display only)"
+    else:
+        leak_txt = f"occlusion: pixel &middot; residual mask leak (max): {leak_max:.2e}"
+        masked_col = "masked image fed to the LVLM"
 
     gt_txt = ", ".join(rec["gt_objects"]) if rec["gt_objects"] else "(none)"
 
@@ -214,12 +222,12 @@ def _image_card(rec: Dict, cfg, idx: int, total: int) -> str:
         <b>&sigma;&#770;<sub>&Delta;</sub></b> = {rec['sigma_hat']:.4f} &nbsp;
         &rarr; <b>&tau;</b> = &mu;&#770; + {rec['kappa']}&middot;&sigma;&#770; = {rec['tau']:+.4f}
         &nbsp;&middot;&nbsp; GT-present probes: {n_contam}
-        &nbsp;&middot;&nbsp; residual mask leak (max): {leak_max:.2e}
+        &nbsp;&middot;&nbsp; {leak_txt}
       </div>
 
       <table class="objs">
         <thead><tr>
-          <th>masked image fed to the LVLM</th>
+          <th>{masked_col}</th>
           <th>object</th>
           <th>&#8467;(w)</th><th>&#8467;<sub>masked</sub>(w)</th>
           <th>&Delta;(w)</th><th>conf&nbsp;drop</th>
@@ -289,6 +297,7 @@ def _summary_html(records: List[Dict], cfg) -> str:
     leak_max = max([o["leak_max"] for o in obj_rows] or [0.0])
     not_enforced = sum(1 for o in obj_rows if not o.get("mask_enforced_ok", True))
     outside = sum(1 for o in obj_rows if o.get("outside_crop"))
+    occ_mode = records[0].get("occlusion", "pixel") if records else "pixel"
 
     return f"""
     <div class="summary">
@@ -363,10 +372,17 @@ def _summary_html(records: List[Dict], cfg) -> str:
 
           <h2>Masking integrity</h2>
           <table class="kv">
-            <tr><td>residual leak into masked patches (max |dev|)</td>
-                <td>{leak_max:.2e} <span class="sub">before enforcement</span></td></tr>
-            <tr><td>objects where enforcement failed</td>
-                <td>{'<b style="color:%s">%d</b>' % (C_HALLUC, not_enforced) if not_enforced else '0'}</td></tr>
+            {(
+              '<tr><td>occlusion mechanism</td><td><b>attention</b> '
+              '<span class="sub">(object removed from ViT + LVLM attention; '
+              'no pixel is altered, so there is no residual leak to measure)</span></td></tr>'
+              if occ_mode == 'attention' else
+              '<tr><td>occlusion mechanism</td><td><b>pixel</b> (mean-fill inpainting)</td></tr>'
+              '<tr><td>residual leak into masked patches (max |dev|)</td>'
+              '<td>%.2e <span class="sub">before enforcement</span></td></tr>'
+              '<tr><td>objects where enforcement failed</td><td>%s</td></tr>'
+              % (leak_max, ('<b style="color:%s">%d</b>' % (C_HALLUC, not_enforced)) if not_enforced else '0')
+            )}
             <tr><td>boxes falling outside the centre-crop</td><td>{outside}</td></tr>
             <tr><td>mean instances masked | candidates</td><td>{_mean(obj_rows,'n_instances'):.2f}</td></tr>
             <tr><td>mean instances masked | probes</td><td>{_mean(probe_rows,'n_instances'):.2f}</td></tr>
