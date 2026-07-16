@@ -63,7 +63,17 @@ def load_lvlm(model_path: str, fp16: bool = True, device: str = "cuda"):
 
     dtype = torch.float16 if fp16 else torch.float32
 
-    model = LlavaForConditionalGeneration.from_pretrained(model_path, torch_dtype=dtype)
+    # attn_implementation="sdpa" is REQUIRED for attention occlusion to work.
+    # The ViT occlusion is realised as an additive attention mask injected into the
+    # vision tower's self-attention. SDPA and eager both honour an additive mask;
+    # flash-attention-2 does NOT (it supports only causal/no mask) and would silently
+    # ignore it, leaving the ViT half of the occlusion inert -- the object then leaks
+    # into the LVLM through neighbouring patch tokens and the causal test is gutted
+    # with no error. So we pin sdpa here rather than leave it to the version-dependent
+    # default. (The AttentionOcclusion constructor also self-checks this at runtime.)
+    model = LlavaForConditionalGeneration.from_pretrained(
+        model_path, torch_dtype=dtype, attn_implementation="sdpa"
+    )
     model = model.to(device)
     model.eval()
 

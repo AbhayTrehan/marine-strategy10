@@ -145,6 +145,79 @@ class AttentionOcclusion:
 
         self._wrapped = []
         self._install_vision_wrappers()
+        self._vit_mask_effective = None   # set by the self-check below
+        self._self_check_vit()
+
+    # ------------------------------------------------------------------ #
+    # runtime self-check: prove the ViT mask actually reaches attention
+    # ------------------------------------------------------------------ #
+    def _self_check_vit(self, raise_on_failure: bool = True):
+        """Run the vision tower once, with and without a dummy occlusion, and
+        confirm the injected mask actually changes the vision output.
+
+        This is the check that a version-specific silent no-op cannot survive.
+        The wrappers can *install* fine yet have no effect if the installed
+        transformers routes CLIP attention through a kernel that ignores a custom
+        additive `attention_mask` -- most importantly flash-attention-2, which
+        supports only causal/no mask and will drop our bias on the floor. When
+        that happens, ONLY the language-model key mask is active: the object still
+        reaches the LVLM through neighbouring patch tokens that attended to it
+        inside the ViT, and the causal test is quietly gutted -- large AUROC loss,
+        no error. So we make it an error, here, at construction.
+        """
+        import warnings
+        vt = self._find_vision_tower()
+        if vt is None:
+            return
+        try:
+            params = list(vt.parameters())
+            device = params[0].device if params else torch.device("cpu")
+            dtype = params[0].dtype if params else torch.float32
+            vcfg = getattr(self.model.config, "vision_config", None)
+            size = int(getattr(vcfg, "image_size", 336)) if vcfg is not None else 336
+            torch.manual_seed(0)
+            dummy = torch.randn(1, 3, size, size, device=device, dtype=dtype)
+
+            def _vision_last_hidden(px):
+                out = vt(pixel_values=px)
+                # CLIPVisionModel returns an object with .last_hidden_state across
+                # every version; fall back to tuple[0] just in case.
+                return getattr(out, "last_hidden_state", None) if not isinstance(out, tuple) else out[0]
+
+            with torch.inference_mode():
+                base = _vision_last_hidden(dummy)
+                if base is None:
+                    warnings.warn("ViT self-check: could not read last_hidden_state; skipping.")
+                    return
+                with self.occlude([0, 1, 2]):     # block a few patch keys
+                    armed = _vision_last_hidden(dummy)
+
+            # Non-CLS tokens MUST move when a few patch keys are blocked.
+            diff = (base.float() - armed.float()).abs().max().item()
+            self._vit_mask_effective = diff > 1e-5
+            if not self._vit_mask_effective:
+                msg = (
+                    "ATTENTION-OCCLUSION SELF-CHECK FAILED: blocking ViT patch keys "
+                    "did not change the vision tower output at all (max|Δ|=%.2e). The "
+                    "injected additive attention mask is being ignored on this "
+                    "transformers build -- almost always because the vision tower is "
+                    "using flash-attention-2 (which ignores custom additive masks). "
+                    "With the ViT mask inert, only the language-model mask is active "
+                    "and the causal test is silently incomplete, which matches a weak "
+                    "AUROC. FIX: load the vision tower with an attention implementation "
+                    "that honours additive masks, e.g. pass "
+                    "attn_implementation=\"sdpa\" (or \"eager\") for the vision tower "
+                    "when building the model, then re-run. See model_loader notes."
+                    % diff
+                )
+                if raise_on_failure:
+                    raise RuntimeError(msg)
+                warnings.warn(msg)
+        except RuntimeError:
+            raise
+        except Exception as e:  # never let the check itself crash a real run
+            warnings.warn(f"ViT occlusion self-check could not run ({e!r}); "
+                          "proceeding without it. Run attn_masking_selftest.py to verify.")
 
     # ------------------------------------------------------------------ #
     # installation
@@ -221,10 +294,19 @@ class AttentionOcclusion:
 
     def _install_vision_wrappers(self):
         import inspect
-        controller = self
         for attn in self._vision_self_attn_modules():
+            # The wrapper reads its controller from the module (`attn._occ_controller`),
+            # NOT from a value captured at install time. This makes it correct when
+            # more than one AttentionOcclusion is constructed on the same model: the
+            # most recently constructed instance takes ownership of the already-
+            # installed wrappers, instead of leaving them driven by a stale, now-unused
+            # controller whose flags nobody sets (which would silently disable the ViT
+            # mask). We always (re)point the module at `self`.
+            attn._occ_controller = self
+            self._wrapped.append(attn)
+
             if getattr(attn, "_occ_wrapped", False):
-                continue
+                continue  # already wrapped; re-pointing the controller is enough
             orig_forward = attn.forward
             # Which keyword args does this version's attention forward accept?
             # (Newer CLIP refactors dropped `causal_attention_mask` and
@@ -237,17 +319,18 @@ class AttentionOcclusion:
                 params = {"hidden_states", "attention_mask",
                           "causal_attention_mask", "output_attentions"}
 
-            def make_wrapped(_orig, _params):
+            def make_wrapped(_orig, _params, _module):
                 def wrapped(hidden_states,
                             attention_mask=None,
                             causal_attention_mask=None,
                             output_attentions=False,
                             **kw):
-                    if controller._armed and controller._vit_key_mask:
+                    ctrl = getattr(_module, "_occ_controller", None)
+                    if ctrl is not None and ctrl._armed and ctrl._vit_key_mask:
                         # Override the (normally None) vision attention mask with
                         # our additive key-block bias. Vision self-attention has
                         # no causal or padding mask, so there is nothing to merge.
-                        attention_mask = controller._build_vit_bias(
+                        attention_mask = ctrl._build_vit_bias(
                             hidden_states.shape[0],   # bsz
                             hidden_states.shape[1],   # S (tokens)
                             hidden_states.dtype,
@@ -262,14 +345,15 @@ class AttentionOcclusion:
                     return _orig(hidden_states, **call)
                 return wrapped
 
-            attn.forward = make_wrapped(orig_forward, params)
+            attn.forward = make_wrapped(orig_forward, params, attn)
             attn._occ_wrapped = True
             attn._occ_orig_forward = orig_forward
-            self._wrapped.append(attn)
 
     def remove(self):
         """Restore original forwards. Optional; mainly for tests."""
         for attn in self._wrapped:
+            if getattr(attn, "_occ_controller", None) is self:
+                attn._occ_controller = None
             if getattr(attn, "_occ_wrapped", False):
                 attn.forward = attn._occ_orig_forward
                 attn._occ_wrapped = False
